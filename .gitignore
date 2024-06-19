@@ -1,6 +1,9 @@
 # Ignore models in github
 ./my_awesome_**
 
+# Ignore checkpoints
+**/checkpoint**
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

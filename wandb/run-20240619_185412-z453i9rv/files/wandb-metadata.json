@@ -1,0 +1,40 @@
+{
+  "os": "Linux-5.15.0-102-generic-x86_64-with-glibc2.35",
+  "python": "3.11.0",
+  "startedAt": "2024-06-19T15:54:12.820747Z",
+  "program": "/home/ppoulos/nlp-optimizers-aueb-2/main.py",
+  "codePath": "main.py",
+  "git": {
+    "remote": "git@github.com:PavlosPo/nlp-optimizers-aueb-2.git",
+    "commit": "8935e53d0d5f6f501ac34f01b856cbe23c2f2009"
+  },
+  "email": "paulospoulos7@gmail.com",
+  "root": "/home/ppoulos/nlp-optimizers-aueb-2",
+  "host": "titan",
+  "username": "ppoulos",
+  "executable": "/home/ppoulos/miniconda3/envs/pavlosEnv2/bin/python",
+  "codePathLocal": "main.py",
+  "cpu_count": 8,
+  "cpu_count_logical": 16,
+  "gpu": "[NVIDIA GeForce GTX TITAN X]",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "244466741248",
+      "used": "27913170944"
+    }
+  },
+  "memory": {
+    "total": "33448046592"
+  },
+  "cpu": {
+    "count": 8,
+    "countLogical": 16
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce GTX TITAN X",
+      "memoryTotal": "12884901888"
+    }
+  ]
+}
