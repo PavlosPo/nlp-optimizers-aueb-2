@@ -2,6 +2,8 @@ import torch
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
 from datasets import load_dataset
 import evaluate
+from torchmetrics.text.bert import BERTScore
+from torchmetrics.text.rouge import ROUGEScore
 import numpy as np
 
 # Load the T5 model and tokenizer
@@ -18,7 +20,8 @@ test = temp['test'] # Test Dataset
 val = temp['train'] # Val Dataset
 
 # Load evaluation
-rouge = evaluate.load("rouge")
+# rouge = evaluate.load("rouge")
+rouge = ROUGEScore(use_stemmer=True)
 
 # Example text to summarize
 text = train[0]['text']
@@ -45,12 +48,15 @@ def compute_metrics(eval_pred):
     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-    result = rouge.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+    # result = rouge.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
 
-    prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in predictions]
-    result["gen_len"] = np.mean(prediction_lens)
+    # prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in predictions]
+    # result["gen_len"] = np.mean(prediction_lens)
 
-    return {k: round(v, 4) for k, v in result.items()}
+    # Torchmetrics
+    result = rouge(preds=decoded_preds, target=decoded_labels)
+
+    return {k: torch.round(v, decimals=4) for k, v in result.items()}
 
 def get_optimizer(optimizer_name, model, learning_rate):
     if optimizer_name == "adamw":
