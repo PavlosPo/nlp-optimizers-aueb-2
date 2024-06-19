@@ -1,3 +1,6 @@
+# Ignore models in github
+./my_awesome_**
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

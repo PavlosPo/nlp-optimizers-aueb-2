@@ -21,7 +21,7 @@ val = temp['train'] # Val Dataset
 rouge = evaluate.load("rouge")
 
 # Example text to summarize
-text = train[0]['train']
+text = train[0]['text']
 summary = train[0]['summary']
 print(f"\nExample Text: \n{text}\nExample Summary: \n{summary}\n")
 
@@ -65,7 +65,7 @@ training_args = Seq2SeqTrainingArguments(
     num_train_epochs=4,
     predict_with_generate=True,
     fp16=True,
-    push_to_hub=True,
+    push_to_hub=False,
 )
 
 trainer = Seq2SeqTrainer(
