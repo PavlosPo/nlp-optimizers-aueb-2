@@ -1,5 +1,5 @@
 import torch
-from transformers import AutoTokenizer, DataCollatorForSeq2Seq, T5ForConditionalGeneration, AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
+from transformers import AutoTokenizer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
 from datasets import load_dataset
 import evaluate
 import numpy as np
@@ -25,7 +25,6 @@ text = train[0]['text']
 summary = train[0]['summary']
 print(f"\nExample Text: \n{text}\nExample Summary: \n{summary}\n")
 
-
 print("Preprocessing the Dataset Phase starts...\n")
 prefix = "summarize: "  # Required so the T5 model knows that we are going to summarize
 def preprocess_function(examples):
@@ -38,7 +37,6 @@ def preprocess_function(examples):
     return model_inputs
 
 data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=checkpoint)
-
 tokenized_billsum = billsum.map(preprocess_function, batched=True)
 
 def compute_metrics(eval_pred):
@@ -54,6 +52,16 @@ def compute_metrics(eval_pred):
 
     return {k: round(v, 4) for k, v in result.items()}
 
+def get_optimizer(optimizer_name, model, learning_rate):
+    if optimizer_name == "adamw":
+        return torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    elif optimizer_name == "sgd":
+        return torch.optim.SGD(model.parameters(), lr=learning_rate)
+    elif optimizer_name == "adam":
+        return torch.optim.Adam(model.parameters(), lr=learning_rate)
+    else:
+        raise ValueError(f"Unsupported optimizer: {optimizer_name}")
+
 training_args = Seq2SeqTrainingArguments(
     output_dir="my_awesome_billsum_model",
     eval_strategy="epoch",
@@ -65,10 +73,16 @@ training_args = Seq2SeqTrainingArguments(
     num_train_epochs=4,
     predict_with_generate=True,
     fp16=True,
-    push_to_hub=False,
+    push_to_hub=False
 )
 
-trainer = Seq2SeqTrainer(
+class CustomTrainer(Seq2SeqTrainer):
+    def create_optimizer(self):
+        optimizer_name = "adamw"  # Dynamically set the optimizer name here
+        self.optimizer = get_optimizer(optimizer_name, self.model, self.args.learning_rate)
+        print(f"Optimizer: {self.optimizer.__class__.__name__} with name: {optimizer_name} is created.")
+
+trainer = CustomTrainer(
     model=model,
     args=training_args,
     train_dataset=tokenized_billsum["train"],
@@ -77,7 +91,6 @@ trainer = Seq2SeqTrainer(
     data_collator=data_collator,
     compute_metrics=compute_metrics,
 )
-
 
 # Example usage
 if __name__ == "__main__":
