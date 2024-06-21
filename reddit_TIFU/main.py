@@ -14,7 +14,7 @@ wandb.require("core")
 # Parameters for the rest of the script
 optimizer_name = "adam"
 model_name = "google-t5/t5-small"
-dataset =   "cnn_dailymail"
+dataset =   "reddit_tifu"
 seed_num = 1
 max_length = 512
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -28,16 +28,12 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
 # Dataset
-loaded_dataset = load_dataset(dataset, '3.0.0')
+loaded_dataset = load_dataset(dataset, 'long')
 # loaded_dataset = loaded_dataset.train_test_split(test_size=0.2, seed=seed_num, shuffle=True)
-train = loaded_dataset['train'].select(range(1, 200)) # Train Dataset 80%
-temp = loaded_dataset['test'].select(range(1, 200)).train_test_split(test_size=0.5)  # Ignore
-test = temp['test'] # Test Dataset
-val = temp['train'] # Val Dataset
-
-ic(len(train))
-ic(len(val))
-ic(len(test))
+# train = loaded_dataset['train'] # Train Dataset 80%
+# temp = loaded_dataset['test'].train_test_split(test_size=0.5)  # Ignore
+# test = temp['test'] # Test Dataset
+# val = temp['train'] # Val Dataset
 
 # Load evaluation
 rouge = ROUGEScore(use_stemmer=True)
@@ -46,16 +42,14 @@ bert_score = BERTScore(device=device)
 
 prefix = "summarize: "  # Required so the T5 model knows that we are going to summarize
 def preprocess_function(examples):
-    inputs = [prefix + doc for doc in examples["article"]]
+    inputs = [prefix + doc for doc in examples["documents"]]
     model_inputs = tokenizer(inputs, max_length=max_length, truncation=True)
-    labels = tokenizer(text_target=examples["highlights"], max_length=max_length, truncation=True)
+    labels = tokenizer(text_target=examples["tldr"], max_length=max_length, truncation=True)
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
 data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
-tokenized_dataset_train = train.map(preprocess_function, batched=True)
-tokenized_dataset_val = val.map(preprocess_function, batched=True)
-tokenized_dataset_test = test.map(preprocess_function, batched=True)
+tokenized_dataset = loaded_dataset.map(preprocess_function, batched=True)
 
 def compute_metrics(eval_pred):
     predictions, labels = eval_pred
@@ -82,18 +76,18 @@ training_args = Seq2SeqTrainingArguments(
     output_dir=output_dir,
     logging_strategy="steps",
     eval_strategy="steps",
-    logging_steps = 20,
-    eval_steps =20,
+    logging_steps = 5,
+    eval_steps =5,
     learning_rate=2e-5,
     weight_decay=0.01,
     per_device_train_batch_size=4,
     per_device_eval_batch_size=4,
-    # save_total_limit=3,
+    save_total_limit=3,
     num_train_epochs=1,
     predict_with_generate=True,
     seed=seed_num,
     data_seed=seed_num,
-    fp16=False,
+    fp16=True,
     push_to_hub=False,
     report_to="wandb",
     run_name=wandb_run_name,
@@ -109,25 +103,13 @@ class CustomTrainer(Seq2SeqTrainer):
 trainer = CustomTrainer(
     model=model,
     args=training_args,
-    train_dataset=tokenized_dataset_train,
-    eval_dataset=tokenized_dataset_val,
+    train_dataset=tokenized_dataset["train"],
+    eval_dataset=tokenized_dataset["test"],
     tokenizer=tokenizer,
     data_collator=data_collator,
     compute_metrics=compute_metrics,
 )
 
-# Test the model and save results in file and wandb
-def test_model():
-    results = trainer.predict(tokenized_dataset_test)
-    metrics = results[2]
-    
-    # Optionally, save metrics to a file as well
-    with open(f"{output_dir}/results.txt", "w") as f:
-        f.write("\n".join([f"{metric} : {value}" for metric, value in metrics.items()]))
-
-    trainer.log_metrics("test", metrics)    # upload to wandb
-
 # Example usage
 if __name__ == "__main__":
     trainer.train()
-    test_model()

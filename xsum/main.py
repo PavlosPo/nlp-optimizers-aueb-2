@@ -14,7 +14,7 @@ wandb.require("core")
 # Parameters for the rest of the script
 optimizer_name = "adam"
 model_name = "google-t5/t5-small"
-dataset =   "cnn_dailymail"
+dataset =   "xsum"
 seed_num = 1
 max_length = 512
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,9 +42,9 @@ bert_score = BERTScore(device=device)
 
 prefix = "summarize: "  # Required so the T5 model knows that we are going to summarize
 def preprocess_function(examples):
-    inputs = [prefix + doc for doc in examples["article"]]
+    inputs = [prefix + doc for doc in examples["document"]]
     model_inputs = tokenizer(inputs, max_length=max_length, truncation=True)
-    labels = tokenizer(text_target=examples["highlights"], max_length=max_length, truncation=True)
+    labels = tokenizer(text_target=examples["summary"], max_length=max_length, truncation=True)
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
