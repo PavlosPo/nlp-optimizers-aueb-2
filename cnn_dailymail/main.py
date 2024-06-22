@@ -12,7 +12,7 @@ from icecream import ic
 wandb.require("core")
 
 # Parameters for the rest of the script
-optimizer_name = "adam"
+optimizer_name = "adamw"
 model_name = "google-t5/t5-small"
 dataset =   "cnn_dailymail"
 seed_num = 1
@@ -20,43 +20,53 @@ max_length = 512
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}"
 output_dir = f"{optimizer_name}/{dataset}/{model_name.split('-')[1].split('/')[0]}"
-
+train_range = 15000  # Number of training examples to use
+test_range = 1500  # Number of test+val examples to use combined
+val_range = 1500  # Number of validation examples to use
+epochs = 4
+eval_steps = 500
+logging_steps = 500
 
 # Main
-# Load the T5 model and tokenizer
+# Load the tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
 # Dataset
-loaded_dataset = load_dataset(dataset, '3.0.0')
-# loaded_dataset = loaded_dataset.train_test_split(test_size=0.2, seed=seed_num, shuffle=True)
+loaded_dataset = load_dataset(dataset, '3.0.0').shuffle(seed=seed_num)
 train = loaded_dataset['train'] # Train Dataset 80%
-temp = loaded_dataset['test'].train_test_split(test_size=0.5)  # Ignore
+temp = loaded_dataset['test'].train_test_split(test_size=0.5, seed=seed_num, shuffle=True)
 test = temp['test'] # Test Dataset
 val = temp['train'] # Val Dataset
-
-ic(len(train))
-ic(len(val))
-ic(len(test))
 
 # Load evaluation
 rouge = ROUGEScore(use_stemmer=True)
 bert_score = BERTScore(device=device)
-# bert_score = load("bertscore")
+
+def clear_cuda_memory():
+    gc.collect()
+    torch.cuda.empty_cache()
 
 prefix = "summarize: "  # Required so the T5 model knows that we are going to summarize
 def preprocess_function(examples):
     inputs = [prefix + doc for doc in examples["article"]]
-    model_inputs = tokenizer(inputs, max_length=max_length, truncation=True)
-    labels = tokenizer(text_target=examples["highlights"], max_length=max_length, truncation=True)
+    model_inputs = tokenizer(inputs)
+    labels = tokenizer(text_target=examples["highlights"])
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
 data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
-tokenized_dataset_train = train.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length)
-tokenized_dataset_val = val.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length)
-tokenized_dataset_test = test.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length)
-
+tokenized_dataset_train = train.map(
+    preprocess_function, batched=True).filter(
+        lambda x: len(x['input_ids']) <= max_length).select(
+            range(0, train_range))
+tokenized_dataset_val = val.map(
+    preprocess_function, batched=True).filter(
+        lambda x: len(x['input_ids']) <= max_length).select(
+            range(0, val_range))
+tokenized_dataset_test = test.map(
+    preprocess_function, batched=True).filter(
+        lambda x: len(x['input_ids']) <= max_length).select(
+            range(0, test_range))
 
 def compute_metrics(eval_pred):
     predictions, labels = eval_pred

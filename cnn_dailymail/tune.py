@@ -54,24 +54,36 @@ def clear_cuda_memory():
 prefix = "summarize: "  # Required so the T5 model knows that we are going to summarize
 def preprocess_function(examples):
     inputs = [prefix + doc for doc in examples["article"]]
-    model_inputs = tokenizer(inputs, max_length=max_length, truncation=True)
-    labels = tokenizer(text_target=examples["highlights"], max_length=max_length, truncation=True)
+    model_inputs = tokenizer(inputs)
+    labels = tokenizer(text_target=examples["highlights"])
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
 data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
-tokenized_dataset_train = train.map(
-    preprocess_function, batched=True).filter(
-        lambda x: len(x['input_ids']) <= max_length).select(
-            range(0, train_range))
-tokenized_dataset_val = val.map(
-    preprocess_function, batched=True).filter(
-        lambda x: len(x['input_ids']) <= max_length).select(
-            range(0, val_range))
-tokenized_dataset_test = test.map(
-    preprocess_function, batched=True).filter(
-        lambda x: len(x['input_ids']) <= max_length).select(
-            range(0, test_range))
+def safe_select(dataset, range_end):
+    available_samples = len(dataset)
+    actual_range = min(range_end, available_samples)
+    return dataset.select(range(actual_range))
+
+tokenized_dataset_train = safe_select(
+    train.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
+    train_range
+)
+
+tokenized_dataset_val = safe_select(
+    val.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
+    val_range
+)
+
+tokenized_dataset_test = safe_select(
+    test.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
+    test_range
+)
+
+# Print the actual sizes of the datasets
+print(f"Actual train dataset size: {len(tokenized_dataset_train)}")
+print(f"Actual validation dataset size: {len(tokenized_dataset_val)}")
+print(f"Actual test dataset size: {len(tokenized_dataset_test)}")
 
 
 def compute_metrics(eval_pred):
@@ -176,6 +188,10 @@ def main():
         f.write('Training range: ' + str(train_range) + '\n')
         f.write('Test range: ' + str(test_range) + '\n')
         f.write('Validation range: ' + str(val_range) + '\n')
+        f.write(f'Actual train dataset size: {len(tokenized_dataset_train)}\n')
+        f.write(f'Actual validation dataset size: {len(tokenized_dataset_val)}\n')
+        f.write(f'Actual test dataset size: {len(tokenized_dataset_test)}\n')
+        f.write("\n")
         f.write("Best hyperparameters:\n")
         f.write("\n".join([f"{param} : {value}" for param, value in best_run.hyperparameters.items()]))
         f.write("\n\nTest results:\n")
