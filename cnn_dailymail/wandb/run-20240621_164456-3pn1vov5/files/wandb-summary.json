@@ -1,1 +1,0 @@
-{"train_runtime":11.8143,"train_steps_per_second":4.232,"train_loss":2.6167108154296876,"train/global_step":50,"_timestamp":1.718977507292893e+09,"_runtime":11.089324,"_wandb":{"runtime":11},"train_samples_per_second":16.844,"total_flos":2.6933018492928e+13,"train/epoch":1,"_step":0}

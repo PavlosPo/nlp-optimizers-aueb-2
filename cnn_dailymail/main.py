@@ -30,8 +30,8 @@ model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 # Dataset
 loaded_dataset = load_dataset(dataset, '3.0.0')
 # loaded_dataset = loaded_dataset.train_test_split(test_size=0.2, seed=seed_num, shuffle=True)
-train = loaded_dataset['train'].select(range(1, 200)) # Train Dataset 80%
-temp = loaded_dataset['test'].select(range(1, 200)).train_test_split(test_size=0.5)  # Ignore
+train = loaded_dataset['train'] # Train Dataset 80%
+temp = loaded_dataset['test'].train_test_split(test_size=0.5)  # Ignore
 test = temp['test'] # Test Dataset
 val = temp['train'] # Val Dataset
 
@@ -53,9 +53,10 @@ def preprocess_function(examples):
     return model_inputs
 
 data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
-tokenized_dataset_train = train.map(preprocess_function, batched=True)
-tokenized_dataset_val = val.map(preprocess_function, batched=True)
-tokenized_dataset_test = test.map(preprocess_function, batched=True)
+tokenized_dataset_train = train.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length)
+tokenized_dataset_val = val.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length)
+tokenized_dataset_test = test.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length)
+
 
 def compute_metrics(eval_pred):
     predictions, labels = eval_pred
@@ -82,8 +83,9 @@ training_args = Seq2SeqTrainingArguments(
     output_dir=output_dir,
     logging_strategy="steps",
     eval_strategy="steps",
-    logging_steps = 20,
-    eval_steps =20,
+    logging_steps = 500,
+    eval_steps = 500,
+    save_steps=500,
     learning_rate=2e-5,
     weight_decay=0.01,
     per_device_train_batch_size=4,
@@ -93,7 +95,7 @@ training_args = Seq2SeqTrainingArguments(
     predict_with_generate=True,
     seed=seed_num,
     data_seed=seed_num,
-    fp16=False,
+    fp16=True,
     push_to_hub=False,
     report_to="wandb",
     run_name=wandb_run_name,
@@ -122,7 +124,7 @@ def test_model():
     metrics = results[2]
     
     # Optionally, save metrics to a file as well
-    with open(f"{output_dir}/results.txt", "w") as f:
+    with open(f"{output_dir}/train_results.txt", "w") as f:
         f.write("\n".join([f"{metric} : {value}" for metric, value in metrics.items()]))
 
     trainer.log_metrics("test", metrics)    # upload to wandb
@@ -131,3 +133,5 @@ def test_model():
 if __name__ == "__main__":
     trainer.train()
     test_model()
+    trainer.save_model(output_dir + "/saved_trained_model/")
+    
