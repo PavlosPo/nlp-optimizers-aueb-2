@@ -8,7 +8,10 @@ from torchmetrics.text.rouge import ROUGEScore
 import numpy as np
 import wandb
 import os
+import gc
 from icecream import ic
+
+
 wandb.require("core")
 
 # Parameters for the rest of the script
@@ -20,12 +23,15 @@ max_length = 512
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}"
 output_dir = f"{optimizer_name}/{dataset}/{model_name.split('-')[1].split('/')[0]}"
-train_range = 15000  # Number of training examples to use
-test_range = 1500  # Number of test+val examples to use combined
-val_range = 1500  # Number of validation examples to use
-epochs = 4
-eval_steps = 500
-logging_steps = 500
+hyper_param_output_name = "hyperparameter_lr_only"  # Where/How to save the hyperparameters
+train_range = 150  # Number of training examples to use
+test_range = 150 # Number of test+val examples to use combined
+val_range = 150  # Number of validation examples to use
+epochs = 1
+eval_steps = 10
+logging_steps = 10
+n_trails = 2
+
 
 # Main
 # Load the tokenizer
@@ -55,18 +61,31 @@ def preprocess_function(examples):
     return model_inputs
 
 data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
-tokenized_dataset_train = train.map(
-    preprocess_function, batched=True).filter(
-        lambda x: len(x['input_ids']) <= max_length).select(
-            range(0, train_range))
-tokenized_dataset_val = val.map(
-    preprocess_function, batched=True).filter(
-        lambda x: len(x['input_ids']) <= max_length).select(
-            range(0, val_range))
-tokenized_dataset_test = test.map(
-    preprocess_function, batched=True).filter(
-        lambda x: len(x['input_ids']) <= max_length).select(
-            range(0, test_range))
+def safe_select(dataset, range_end):
+    available_samples = len(dataset)
+    actual_range = min(range_end, available_samples)
+    return dataset.select(range(actual_range))
+
+tokenized_dataset_train = safe_select(
+    train.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
+    train_range
+)
+
+tokenized_dataset_val = safe_select(
+    val.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
+    val_range
+)
+
+tokenized_dataset_test = safe_select(
+    test.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
+    test_range
+)
+
+# Print the actual sizes of the datasets
+print(f"Actual train dataset size: {len(tokenized_dataset_train)}")
+print(f"Actual validation dataset size: {len(tokenized_dataset_val)}")
+print(f"Actual test dataset size: {len(tokenized_dataset_test)}")
+
 
 def compute_metrics(eval_pred):
     predictions, labels = eval_pred
@@ -89,59 +108,98 @@ def get_optimizer(optimizer_name, model, learning_rate):
     else:
         raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 
-training_args = Seq2SeqTrainingArguments(
-    output_dir=output_dir,
-    logging_strategy="steps",
-    eval_strategy="steps",
-    logging_steps = 500,
-    eval_steps = 500,
-    save_steps=500,
-    learning_rate=2e-5,
-    weight_decay=0.01,
-    per_device_train_batch_size=4,
-    per_device_eval_batch_size=4,
-    # save_total_limit=3,
-    num_train_epochs=1,
-    predict_with_generate=True,
-    seed=seed_num,
-    data_seed=seed_num,
-    fp16=True,
-    push_to_hub=False,
-    report_to="wandb",
-    run_name=wandb_run_name,
-    load_best_model_at_end = True,
-    metric_for_best_model = 'loss',
-)
+def model_init():
+    return AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
 class CustomTrainer(Seq2SeqTrainer):
     def create_optimizer(self):
         self.optimizer = get_optimizer(optimizer_name, self.model, self.args.learning_rate)
         print(f"\nOptimizer: {self.optimizer.__class__.__name__} with name: {optimizer_name} was created.\n")
+def main():
+    training_args = Seq2SeqTrainingArguments(
+        output_dir=output_dir,
+        logging_strategy="steps",
+        evaluation_strategy="steps",
+        logging_steps=logging_steps,
+        eval_steps=eval_steps,
+        save_steps=eval_steps,
+        learning_rate=learning_rate,
+        per_device_train_batch_size=4,
+        per_device_eval_batch_size=4,
+        num_train_epochs=epochs,
+        predict_with_generate=True,
+        seed=seed_num,
+        data_seed=seed_num,
+        fp16=True,
+        push_to_hub=False,
+        report_to="wandb",
+        run_name=wandb_run_name,
+        load_best_model_at_end=True,
+        metric_for_best_model='eval_loss',
+        greater_is_better=False
+    )
 
-trainer = CustomTrainer(
-    model=model,
-    args=training_args,
-    train_dataset=tokenized_dataset_train,
-    eval_dataset=tokenized_dataset_val,
-    tokenizer=tokenizer,
-    data_collator=data_collator,
-    compute_metrics=compute_metrics,
-)
+    class CustomTrainer(Seq2SeqTrainer):
+        def create_optimizer(self):
+            self.optimizer = get_optimizer(optimizer_name, self.model, self.args.learning_rate)
+            print(f"\nOptimizer: {self.optimizer.__class__.__name__} with name: {optimizer_name} was created.\n")
 
-# Test the model and save results in file and wandb
-def test_model():
-    results = trainer.predict(tokenized_dataset_test)
-    metrics = results[2]
-    
-    # Optionally, save metrics to a file as well
-    with open(f"{output_dir}/train_results.txt", "w") as f:
-        f.write("\n".join([f"{metric} : {value}" for metric, value in metrics.items()]))
+    trainer = CustomTrainer(
+        model=model_init(),  # We will initialize the model inside the trainer
+        args=training_args,
+        train_dataset=tokenized_dataset_train,
+        eval_dataset=tokenized_dataset_val,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        compute_metrics=compute_metrics,
+    )
 
-    trainer.log_metrics("test", metrics)    # upload to wandb
+    try:
+        # Train the model
+        train_result = trainer.train()
+        
+        # Get the best model
+        best_model_path = trainer.state.best_model_checkpoint
+        best_model = AutoModelForSeq2SeqLM.from_pretrained(best_model_path).to(device)
+        
+        # Evaluate the best model on the test set
+        trainer.model = best_model
+        test_results = trainer.evaluate(tokenized_dataset_test, metric_key_prefix="test")
+        print(f"Test results with best model: {test_results}")
+        
+        # Log the test results to wandb
+        trainer.log_metrics("test", test_results)
+        
+        # Save metrics and hyperparameters
+        with open(f"{output_dir}/results_seed_{seed_num}.txt", "w") as f:
+            f.write(f"Seed: {seed_num}\n")
+            f.write(f'Training range: {train_range}\n')
+            f.write(f'Test range: {test_range}\n')
+            f.write(f'Validation range: {val_range}\n')
+            f.write(f'Actual train dataset size: {len(tokenized_dataset_train)}\n')
+            f.write(f'Actual validation dataset size: {len(tokenized_dataset_val)}\n')
+            f.write(f'Actual test dataset size: {len(tokenized_dataset_test)}\n')
+            f.write("\nBest hyperparameters:\n")
+            f.write("\n".join([f"{param} : {value}" for param, value in hyperparameters.items()]))
+            f.write("\n\nTest results:\n")
+            f.write("\n".join([f"{metric} : {value}" for metric, value in test_results.items()]))
+        
+        # Save the best model
+        best_model.save_pretrained(output_dir + f"/best_model_seed_{seed_num}")
+        tokenizer.save_pretrained(output_dir + f"/best_model_seed_{seed_num}")
+        
+        return best_model  # Return the best model for further use
 
-# Example usage
+    except torch.cuda.OutOfMemoryError as e:
+        print(f"Out of memory error: {e}")
+        clear_cuda_memory()
+        print("Cleared CUDA memory")
+        print("Retrying training...")
+        raise optuna.TrialPruned()
+    except Exception as e:
+        print(f"Unknown error: {e}")
+        clear_cuda_memory()
+        raise optuna.TrialPruned()
+
 if __name__ == "__main__":
-    trainer.train()
-    test_model()
-    trainer.save_model(output_dir + "/saved_trained_model/")
-    
+    main()
