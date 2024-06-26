@@ -16,12 +16,17 @@ wandb.require("core")
 
 os.environ["WANDB_MODE"] = "offline"
 
+# Argument parser for GPU ID
+parser = argparse.ArgumentParser()
+parser.add_argument("--gpu", type=int, required=True, help="GPU ID to use for training")
+args = parser.parse_args()
+
 # Parameters for the rest of the script
 optimizer_name = "adamw"
 model_name = "google-t5/t5-small"
 dataset = "cnn_dailymail"
 max_length = 512
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
 wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}"
 output_dir = f"{optimizer_name}/{dataset}/{model_name.split('-')[1].split('/')[0]}"
 hyper_param_output_name = "hyperparameter_lr_only"  # Where/How to save the hyperparameters
