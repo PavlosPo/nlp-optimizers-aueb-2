@@ -14,6 +14,8 @@ import optuna
 
 wandb.require("core")
 
+os.environ["WANDB_MODE"] = "offline"
+
 # Parameters for the rest of the script
 optimizer_name = "adamw"
 model_name = "google-t5/t5-small"
@@ -23,13 +25,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}"
 output_dir = f"{optimizer_name}/{dataset}/{model_name.split('-')[1].split('/')[0]}"
 hyper_param_output_name = "hyperparameter_lr_only"  # Where/How to save the hyperparameters
-train_range = 150  # Number of training examples to use
-test_range = 150  # Number of test+val examples to use combined
-val_range = 150  # Number of validation examples to use
-epochs = 1
-eval_steps = 10
-logging_steps = 10
-n_trials = 2
+train_range = 15000  # Number of training examples to use
+test_range = 1500  # Number of test+val examples to use combined
+val_range = 1500  # Number of validation examples to use
+epochs = 4
+eval_steps = 1000
+logging_steps = 1000
+n_trials = 30
 
 
 # Function to load the tokenizer
@@ -55,8 +57,8 @@ def clear_cuda_memory():
 prefix = "summarize: "  # Required so the T5 model knows that we are going to summarize
 def preprocess_function(examples):
     inputs = [prefix + doc for doc in examples["article"]]
-    model_inputs = tokenizer(inputs)
-    labels = tokenizer(text_target=examples["highlights"])
+    model_inputs = tokenizer(inputs, padding=True, truncation=True, max_length=max_length)
+    labels = tokenizer(text_target=examples["highlights"], padding=True, truncation=True, max_length=max_length)
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
@@ -138,7 +140,7 @@ def main(seed_num):
         eval_steps=eval_steps,
         per_device_train_batch_size=4,
         per_device_eval_batch_size=4,
-        save_total_limit=2,
+        save_total_limit=1,
         num_train_epochs=epochs,
         predict_with_generate=True,
         seed=seed_num,
@@ -165,20 +167,13 @@ def main(seed_num):
         model_init=model_init,
     )
 
-    try: 
-        best_run = trainer.hyperparameter_search(
-            hp_space=optuna_hp_space,
-            direction="minimize",
-            backend="optuna",
-            n_trials=n_trials,
-            compute_objective=lambda metrics: metrics["eval_loss"],
-        )
-    except Exception as e:
-        print(f"Error during hyperparameter search: {e}")
-        clear_cuda_memory()
-        print("Cleared CUDA memory")
-        print("Retrying hyperparameter search...")
-        raise optuna.TrialPruned()
+    best_run = trainer.hyperparameter_search(
+        hp_space=optuna_hp_space,
+        direction="minimize",
+        backend="optuna",
+        n_trials=n_trials,
+        compute_objective=lambda metrics: metrics["eval_loss"],
+    )
         
     # Save metrics and hyperparameters
     with open(f"{output_dir}/{hyper_param_output_name}_seed_{seed_num}.txt", "w") as f:
@@ -196,6 +191,6 @@ def main(seed_num):
         f.write("\n".join([f"{param} : {value}" for param, value in best_run.hyperparameters.items()]))
 
 if __name__ == "__main__":
-    for seed in range(1, 5):
-        print(f"Running with seed: {seed}")
-        main(seed)
+    seed = 10
+    print(f"Running with seed: {seed}")
+    main(seed)
