@@ -11,6 +11,7 @@ import os
 from icecream import ic
 import gc
 import optuna
+import argparse
 
 wandb.require("core")
 
@@ -22,9 +23,10 @@ parser.add_argument("--gpu", type=int, required=True, help="GPU ID to use for tr
 args = parser.parse_args()
 
 # Parameters for the rest of the script
-optimizer_name = "adamw"
+optimizer_name = "sgd"
 model_name = "google-t5/t5-small"
 dataset = "cnn_dailymail"
+seed_num = 10
 max_length = 512
 device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
 wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}"
@@ -196,6 +198,5 @@ def main(seed_num):
         f.write("\n".join([f"{param} : {value}" for param, value in best_run.hyperparameters.items()]))
 
 if __name__ == "__main__":
-    seed = 10
-    print(f"Running with seed: {seed}")
-    main(seed)
+    print(f"Running with seed: {seed_num}")
+    main(seed_num)

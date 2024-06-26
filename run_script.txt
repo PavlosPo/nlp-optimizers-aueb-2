@@ -1,0 +1,4 @@
+
+CUDA_VISIBLE_DEVICES="X" python tune.py --gpu "X"
+
+with "X" means the number ID of the graphics card to use.
