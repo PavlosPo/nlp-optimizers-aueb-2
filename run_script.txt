@@ -1,4 +1,5 @@
 
-CUDA_VISIBLE_DEVICES="X" python tune.py --gpu "X"
+CUDA_VISIBLE_DEVICES="X" python tune.py --gpu "X" --seed "Y"
 
 with "X" means the number ID of the graphics card to use.
+with "Y" is the seed number

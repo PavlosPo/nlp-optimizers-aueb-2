@@ -17,16 +17,17 @@ wandb.require("core")
 
 os.environ["WANDB_MODE"] = "offline"
 
-# Argument parser for GPU ID
+# Argument parser for GPU ID and seed number
 parser = argparse.ArgumentParser()
 parser.add_argument("--gpu", type=int, required=True, help="GPU ID to use for training")
+parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
 args = parser.parse_args()
 
 # Parameters for the rest of the script
 optimizer_name = "sgd"
 model_name = "google-t5/t5-small"
 dataset = "cnn_dailymail"
-seed_num = 10
+seed_num = args.seed
 max_length = 512
 device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
 wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}"
