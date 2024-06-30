@@ -1,0 +1,13 @@
+Seed: 10
+Model: google-t5/t5-small
+Dataset: cnn_dailymail
+Optimizer: adamw
+Training range: 15000
+Test range: 1500
+Validation range: 1500
+Actual train dataset size: 15000
+Actual validation dataset size: 1500
+Actual test dataset size: 1500
+
+Best hyperparameters:
+learning_rate : 9.9879589111261e-06
