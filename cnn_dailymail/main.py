@@ -12,18 +12,25 @@ from icecream import ic
 import gc
 import optuna
 from transformers.trainer_utils import get_last_checkpoint
+import argparse
 
 wandb.require("core")
 
 os.environ["WANDB_MODE"] = "online"
 
+# Argument parser for GPU ID and seed number
+parser = argparse.ArgumentParser()
+parser.add_argument("--gpu", type=int, required=True, help="GPU ID to use for training")
+parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
+args = parser.parse_args()
+
 # Parameters for the rest of the script
-optimizer_name = "adamw"
+optimizer_name = "sgd"
 model_name = "google-t5/t5-small"
 dataset = "cnn_dailymail"
-seed_num = 1
+seed_num = args.seed
 max_length = 512
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
 wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}_{seed_num}"
 output_dir = f"{optimizer_name}/{dataset}/best_{model_name.split('-')[1].split('/')[0]}"
 # hyper_param_output_name = "hyperparameter_lr_only"  # Where/How to save the hyperparameters
@@ -34,7 +41,7 @@ epochs = 4
 eval_steps = 1000
 logging_steps = 1000
 # n_trials = 30
-learning_rate = 9.975946469842669e-06
+learning_rate = 9.98098522278039e-06
 
 # Function to load the tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -50,7 +57,7 @@ def load_datasets(seed_num):
 
 # Load evaluation metrics
 rouge = ROUGEScore(use_stemmer=True)
-bert_score = BERTScore(device=device)
+bert_score = BERTScore()
 
 def clear_cuda_memory():
     gc.collect()
@@ -72,14 +79,12 @@ def safe_select(dataset, range_end):
     return dataset.select(range(actual_range))
 
 def prepare_datasets(train, val, test):
-    # Map and filter to only take the examples that are less than or equal to max_length
     tokenized_dataset_train = safe_select(
         train.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
         train_range
     )
     
     tokenized_dataset_val = safe_select(
-        
         val.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
         val_range
     )
