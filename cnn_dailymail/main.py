@@ -41,7 +41,7 @@ epochs = 4
 eval_steps = 1000
 logging_steps = 1000
 # n_trials = 30
-learning_rate = 9.975946469842669e-06
+learning_rate = 9.9879589111261e-06
 
 # Function to load the tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)

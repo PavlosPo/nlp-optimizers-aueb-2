@@ -21,10 +21,11 @@ os.environ["WANDB_MODE"] = "offline"
 parser = argparse.ArgumentParser()
 parser.add_argument("--gpu", type=int, required=True, help="GPU ID to use for training")
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
+parser.add_argument("--optim", type=str, required=True, help="Optimizer string for training")
 args = parser.parse_args()
 
 # Parameters for the rest of the script
-optimizer_name = "sgd"
+optimizer_name = args.optim
 model_name = "google-t5/t5-small"
 dataset = "cnn_dailymail"
 seed_num = args.seed
@@ -129,6 +130,7 @@ class CustomTrainer(Seq2SeqTrainer):
     def create_optimizer(self):
         self.optimizer = get_optimizer(optimizer_name, self.model, self.args.learning_rate)
         print(f"\nOptimizer: {self.optimizer.__class__.__name__} with name: {optimizer_name} was created.\n")
+        return self.optimizer
 
 def optuna_hp_space(trial):
     return {
