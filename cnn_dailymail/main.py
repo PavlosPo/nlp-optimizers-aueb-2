@@ -25,7 +25,7 @@ parser.add_argument("--seed", type=int, required=True, help="Seed number for rep
 args = parser.parse_args()
 
 # Parameters for the rest of the script
-optimizer_name = "sgd"
+optimizer_name = "adamw"
 model_name = "google-t5/t5-small"
 dataset = "cnn_dailymail"
 seed_num = args.seed
@@ -41,7 +41,7 @@ epochs = 4
 eval_steps = 1000
 logging_steps = 1000
 # n_trials = 30
-learning_rate = 9.98098522278039e-06
+learning_rate = 9.975946469842669e-06
 
 # Function to load the tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
