@@ -149,7 +149,7 @@ def main(seed_num):
         predict_with_generate=True,
         seed=seed_num,
         data_seed=seed_num,
-        fp16=True,
+        # fp16=True,
         push_to_hub=False,
         report_to="wandb",
         run_name=wandb_run_name,
