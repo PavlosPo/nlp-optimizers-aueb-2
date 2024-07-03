@@ -17,6 +17,7 @@ import argparse
 wandb.require("core")
 
 os.environ["WANDB_MODE"] = "online"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Argument parser for GPU ID and seed number
 parser = argparse.ArgumentParser()
