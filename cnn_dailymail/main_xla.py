@@ -1,27 +1,31 @@
 import torch
 import pytorch_lightning as pl
+from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM
 from datasets import load_dataset
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
+from torchmetrics import MetricCollection
 import numpy as np
 import wandb
 import os
 import argparse
 from torch.utils.data import DataLoader
+from icecream import ic
 
 wandb.require("core")
 os.environ["WANDB_MODE"] = "online"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
+parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
 args = parser.parse_args()
 
 # Parameters
-optimizer_name = "adamw"
-model_name = "google/t5-small"
+optimizer_name = args.optim
+model_name = "google-t5/t5-small"
 dataset_name = "cnn_dailymail"
 seed_num = args.seed
 max_length = 512
@@ -39,27 +43,55 @@ class T5SummarizationModule(pl.LightningModule):
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
-        self.rouge = ROUGEScore(use_stemmer=True)
-        self.bert_score = BERTScore()
+        metrics = MetricCollection([
+            ROUGEScore(use_stemmer=True), 
+            BERTScore(model_name_or_path='roberta-large', device=self.device)
+        ])
+        self.train_metrics = metrics.clone(prefix='train_')
+        self.valid_metrics = metrics.clone(prefix='val_')
+        self.test_metrics = metrics.clone(prefix='test_')
 
-    def forward(self, input_ids, attention_mask, labels=None):
+    def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        if predict_with_generate:
+            generated_ids = self.model.generate(input_ids, attention_mask=attention_mask, max_length=max_length)
+            outputs['generated_ids'] = generated_ids
+            return outputs
         return outputs
+    
 
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
-        self.log("train_loss", outputs.loss)
+        self.log("train_loss", outputs.loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         return outputs.loss
 
     def validation_step(self, batch, batch_idx):
-        outputs = self(**batch)
-        self.log("val_loss", outputs.loss)
-        return outputs
+        outputs = self(**batch, predict_with_generate=True)
+        self.log("val_loss", outputs.loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        # Generate summaries
+        generated_summaries = self.tokenizer.batch_decode(outputs.generated_ids, skip_special_tokens=True)
+        # Decode reference summaries
+        reference_summaries = self.tokenizer.batch_decode(batch["labels"], skip_special_tokens=True)
+        self.valid_metrics.update(preds=generated_summaries, target=reference_summaries)
+        
+    def on_validation_epoch_end(self):
+        results = self.valid_metrics.compute()
+        self.log_dict(results, on_epoch=True, sync_dist=True)
+        self.valid_metrics.reset()
 
     def test_step(self, batch, batch_idx):
-        outputs = self(**batch)
-        self.log("test_loss", outputs.loss)
-        return outputs
+        outputs = self(**batch, predict_with_generate=True)
+        self.log("test_loss", outputs.loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        # Generate summaries
+        generated_summaries = self.tokenizer.batch_decode(outputs.generated_ids, skip_special_tokens=True)
+        # Decode reference summaries
+        reference_summaries = self.tokenizer.batch_decode(batch["labels"], skip_special_tokens=True)
+        self.test_metrics.update(preds=generated_summaries, target=reference_summaries)
+        
+    def on_test_epoch_end(self):
+        results = self.test_metrics.compute()
+        self.log_dict(results, on_epoch=True, sync_dist=True)
+        self.test_metrics.reset()
 
     def configure_optimizers(self):
         if optimizer_name == "adamw":
@@ -70,18 +102,6 @@ class T5SummarizationModule(pl.LightningModule):
             return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         else:
             raise ValueError(f"Unsupported optimizer: {optimizer_name}")
-
-    def compute_metrics(self, predictions, labels):
-        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
-        labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
-        decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
-        
-        result_rouge = self.rouge(preds=decoded_preds, target=decoded_labels)
-        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
-        result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
-        
-        results = {**result_rouge, **result_brt_average_values}
-        return results
 
 def preprocess_function(examples, tokenizer, max_length):
     prefix = "summarize: "
@@ -123,15 +143,13 @@ def main():
     tokenizer = model.tokenizer
 
     train_dataset, val_dataset, test_dataset = load_and_prepare_data(tokenizer, max_length)
-
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
 
-    train_loader = DataLoader(train_dataset, batch_size=4, collate_fn=data_collator, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=4, collate_fn=data_collator)
-    test_loader = DataLoader(test_dataset, batch_size=4, collate_fn=data_collator)
+    train_loader = DataLoader(train_dataset, batch_size=4, collate_fn=data_collator, shuffle=True, num_workers=7)
+    val_loader = DataLoader(val_dataset, batch_size=4, collate_fn=data_collator, num_workers=7)
+    test_loader = DataLoader(test_dataset, batch_size=4, collate_fn=data_collator, num_workers=7)
 
     wandb_logger = WandbLogger(project="t5-summarization", name=wandb_run_name)
-
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
         filename='best-checkpoint',
@@ -141,17 +159,20 @@ def main():
         mode='min'
     )
 
+    # strategy = DDPStrategy(find_unused_parameters=False)
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=wandb_logger,
-        callbacks=[checkpoint_callback],
-        log_every_n_steps=1000,
-        val_check_interval=1000,
-        precision=16,
+        # callbacks=[checkpoint_callback],
+        log_every_n_steps=10,
+        val_check_interval=10,
+        # precision="16-mixed",
+        # accelerator='gpu',
+        # devices=2,
+        # strategy=strategy,
     )
 
     trainer.fit(model, train_loader, val_loader)
-
     test_results = trainer.test(model, test_loader)
 
     with open(f"{output_dir}/results_with_seed_{seed_num}.txt", "w") as f:
