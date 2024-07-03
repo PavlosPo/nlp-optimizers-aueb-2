@@ -1,9 +1,15 @@
 import torch
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torch_xla.distributed.parallel_loader as pl
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
 from datasets import load_dataset
-# import evaluate
+import evaluate
 from torchmetrics.text.bert import BERTScore
-# from evaluate import load
+from evaluate import load
 from torchmetrics.text.rouge import ROUGEScore
 import numpy as np
 import wandb
@@ -11,37 +17,38 @@ import os
 from icecream import ic
 import gc
 import optuna
+from transformers.trainer_utils import get_last_checkpoint
 import argparse
 
 wandb.require("core")
 
-os.environ["WANDB_MODE"] = "offline"
+os.environ["WANDB_MODE"] = "online"
 
-# Argument parser for GPU ID and seed number
+# Argument parser for TPU core and seed number
 parser = argparse.ArgumentParser()
-parser.add_argument("--gpu", type=int, required=True, help="GPU ID to use for training")
+parser.add_argument("--tpu_core", type=int, required=True, help="TPU core ID to use for training")
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
-parser.add_argument("--optim", type=str, required=True, help="Optimizer string for training")
 args = parser.parse_args()
 
 # Parameters for the rest of the script
-optimizer_name = args.optim
+optimizer_name = "adamw"
 model_name = "google-t5/t5-small"
 dataset = "cnn_dailymail"
 seed_num = args.seed
 max_length = 512
-device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
-wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}"
-output_dir = f"{optimizer_name}/{dataset}/{model_name.split('-')[1].split('/')[0]}"
-hyper_param_output_name = "hyperparameter_lr_only"  # Where/How to save the hyperparameters
+device = xm.xla_device()
+wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}_{seed_num}"
+output_dir = f"{optimizer_name}/{dataset}/best_{model_name.split('-')[1].split('/')[0]}"
+# hyper_param_output_name = "hyperparameter_lr_only"  # Where/How to save the hyperparameters
 train_range = 15000  # Number of training examples to use
 test_range = 1500  # Number of test+val examples to use combined
 val_range = 1500  # Number of validation examples to use
 epochs = 4
+batch_size = 16  # Define your batch size, might need adjustment based on TPU memory
 eval_steps = 1000
 logging_steps = 1000
-n_trials = 30
-
+# n_trials = 30
+learning_rate = 9.9879589111261e-06
 
 # Function to load the tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -56,7 +63,7 @@ def load_datasets(seed_num):
     return train, val, test
 
 # Load evaluation metrics
-rouge_score = ROUGEScore(use_stemmer=True)
+rouge = ROUGEScore(use_stemmer=True)
 bert_score = BERTScore()
 
 def clear_cuda_memory():
@@ -107,7 +114,7 @@ def compute_metrics(eval_pred):
     decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-    result_rouge = rouge_score(preds=decoded_preds, target=decoded_labels)
+    result_rouge = rouge(preds=decoded_preds, target=decoded_labels)
     result_brt = bert_score(preds=decoded_preds, target=decoded_labels)
     result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
     results = {**result_rouge, **result_brt_average_values}
@@ -120,10 +127,42 @@ def get_optimizer(optimizer_name, model, learning_rate):
         return torch.optim.SGD(model.parameters(), lr=learning_rate)
     elif optimizer_name == "adam":
         return torch.optim.Adam(model.parameters(), lr=learning_rate)
-    elif optimizer_name == "sgdm":
-        return torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9) # Default 0.9 momentum
     else:
         raise ValueError(f"Unsupported optimizer: {optimizer_name}")
+    
+# Assuming load_datasets function is defined above and returns train, test, val datasets
+def create_data_loaders(train_dataset, val_dataset, test_dataset, batch_size=16):
+    # Create DistributedSampler to shard the dataset
+    train_sampler = DistributedSampler(
+        train_dataset,
+        num_replicas=xm.xrt_world_size(),
+        rank=xm.get_ordinal(),
+        shuffle=True
+    )
+    val_sampler = DistributedSampler(
+        val_dataset,
+        num_replicas=xm.xrt_world_size(),
+        rank=xm.get_ordinal(),
+        shuffle=False
+    )
+    test_sampler = DistributedSampler(
+        test_dataset,
+        num_replicas=xm.xrt_world_size(),
+        rank=xm.get_ordinal(),
+        shuffle=False
+    )
+
+    # Create the DataLoader for each dataset
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, drop_last=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler, drop_last=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, sampler=test_sampler, drop_last=True)
+
+    # Wrap each DataLoader with ParallelLoader for use with XLA
+    train_parallel_loader = pl.ParallelLoader(train_loader, [device]).per_device_loader(device)
+    val_parallel_loader = pl.ParallelLoader(val_loader, [device]).per_device_loader(device)
+    test_parallel_loader = pl.ParallelLoader(test_loader, [device]).per_device_loader(device)
+
+    return train_parallel_loader, val_parallel_loader, test_parallel_loader
 
 def model_init():
     return AutoModelForSeq2SeqLM.from_pretrained(model_name)
@@ -132,19 +171,11 @@ class CustomTrainer(Seq2SeqTrainer):
     def create_optimizer(self):
         self.optimizer = get_optimizer(optimizer_name, self.model, self.args.learning_rate)
         print(f"\nOptimizer: {self.optimizer.__class__.__name__} with name: {optimizer_name} was created.\n")
-        return self.optimizer
-
-def optuna_hp_space(trial):
-    search_space = (1e-7, 1e-3) if optimizer_name.startswith("sgd") else (1e-7, 1e-5)
-    print(f"The search space for {optimizer_name} is {search_space}")
-    
-    return {
-        "learning_rate": trial.suggest_float("learning_rate", search_space[0], search_space[1], log=True),
-    }
 
 def main(seed_num):
     train, val, test = load_datasets(seed_num)
     tokenized_dataset_train, tokenized_dataset_val, tokenized_dataset_test = prepare_datasets(train, val, test)
+    train_loader, val_loader, test_loader = create_data_loaders(tokenized_dataset_train, tokenized_dataset_val, tokenized_dataset_test, batch_size=batch_size)
     print_dataset_sizes(tokenized_dataset_train, tokenized_dataset_val, tokenized_dataset_test)
     
     training_args = Seq2SeqTrainingArguments(
@@ -169,29 +200,28 @@ def main(seed_num):
         greater_is_better=False,
         save_strategy="steps",
         save_steps=eval_steps,  # Save checkpoint at each evaluation
+        learning_rate=learning_rate,
     )
 
     trainer = CustomTrainer(
-        model=None,
+        model=model_init(),
         args=training_args,
         train_dataset=tokenized_dataset_train,
         eval_dataset=tokenized_dataset_val,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
-        model_init=model_init,
     )
-
-    best_run = trainer.hyperparameter_search(
-        hp_space=optuna_hp_space,
-        direction="minimize",
-        backend="optuna",
-        n_trials=n_trials,
-        compute_objective=lambda metrics: metrics["eval_loss"],
-    )
-        
+    
+    # Train the model
+    train_result = trainer.train()
+    
+    trainer.save_model(f"{output_dir}/best_model/")
+    
+    test_results = trainer.evaluate(tokenized_dataset_test, metric_key_prefix="test")
+    
     # Save metrics and hyperparameters
-    with open(f"{output_dir}/{hyper_param_output_name}_seed_{seed_num}.txt", "w") as f:
+    with open(f"{output_dir}/results_with_seed_{seed_num}.txt", "w") as f:
         f.write(f"Seed: {seed_num}\n")
         f.write(f"Model: {model_name}\n")
         f.write(f"Dataset: {dataset}\n")
@@ -202,8 +232,14 @@ def main(seed_num):
         f.write(f'Actual train dataset size: {len(tokenized_dataset_train)}\n')
         f.write(f'Actual validation dataset size: {len(tokenized_dataset_val)}\n')
         f.write(f'Actual test dataset size: {len(tokenized_dataset_test)}\n')
-        f.write("\nBest hyperparameters:\n")
-        f.write("\n".join([f"{param} : {value}" for param, value in best_run.hyperparameters.items()]))
+        f.write(f'Learning rate: {learning_rate}\n')
+        f.write("\nBest checkpoint:\n")
+        f.write(f"{trainer.state.best_model_checkpoint}\n")
+        f.write("\nTest results:\n")
+        f.write("\n".join([f"{key}: {value}" for key, value in test_results.items()]))
+        
+    # Make the model log the test results
+    trainer.log_metrics("test", test_results)
 
 if __name__ == "__main__":
     print(f"Running with seed: {seed_num}")
