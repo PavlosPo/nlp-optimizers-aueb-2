@@ -1,0 +1,7 @@
+https://huggingface.co/docs/accelerate/concept_guides/training_tpu
+
+https://huggingface.co/blog/pytorch-xla
+
+https://github.com/pytorch/xla/blob/master/API_GUIDE.md
+
+https://medium.com/@ajazturki10/text-summarization-with-t5-pytorch-and-pytorch-lightning-b7a319ec9ea2
