@@ -1,246 +1,177 @@
 import torch
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.distributed.parallel_loader as pl
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
-
-from transformers import AutoTokenizer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.callbacks import ModelCheckpoint
+from transformers import AutoTokenizer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM
 from datasets import load_dataset
-import evaluate
-from torchmetrics.text.bert import BERTScore
-from evaluate import load
 from torchmetrics.text.rouge import ROUGEScore
+from torchmetrics.text.bert import BERTScore
 import numpy as np
 import wandb
 import os
-from icecream import ic
-import gc
-import optuna
-from transformers.trainer_utils import get_last_checkpoint
 import argparse
+from torch.utils.data import DataLoader
 
 wandb.require("core")
-
 os.environ["WANDB_MODE"] = "online"
 
-# Argument parser for TPU core and seed number
 parser = argparse.ArgumentParser()
-parser.add_argument("--tpu_core", type=int, required=True, help="TPU core ID to use for training")
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
 args = parser.parse_args()
 
-# Parameters for the rest of the script
+# Parameters
 optimizer_name = "adamw"
-model_name = "google-t5/t5-small"
-dataset = "cnn_dailymail"
+model_name = "google/t5-small"
+dataset_name = "cnn_dailymail"
 seed_num = args.seed
 max_length = 512
-device = xm.xla_device()
-wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}_{seed_num}"
-output_dir = f"{optimizer_name}/{dataset}/best_{model_name.split('-')[1].split('/')[0]}"
-# hyper_param_output_name = "hyperparameter_lr_only"  # Where/How to save the hyperparameters
-train_range = 15000  # Number of training examples to use
-test_range = 1500  # Number of test+val examples to use combined
-val_range = 1500  # Number of validation examples to use
+wandb_run_name = f"{optimizer_name}-{dataset_name}-{model_name.split('/')[-1]}_{seed_num}"
+output_dir = f"{optimizer_name}/{dataset_name}/best_{model_name.split('/')[-1]}"
+train_range = 15000
+test_range = 1500
+val_range = 1500
 epochs = 4
-batch_size = 16  # Define your batch size, might need adjustment based on TPU memory
-eval_steps = 1000
-logging_steps = 1000
-# n_trials = 30
 learning_rate = 9.9879589111261e-06
 
-# Function to load the tokenizer
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+class T5SummarizationModule(pl.LightningModule):
+    def __init__(self, model_name, learning_rate):
+        super().__init__()
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.learning_rate = learning_rate
+        self.rouge = ROUGEScore(use_stemmer=True)
+        self.bert_score = BERTScore()
 
-# Function to load the dataset
-def load_datasets(seed_num):
-    loaded_dataset = load_dataset(dataset, '3.0.0').shuffle(seed=seed_num)
-    train = loaded_dataset['train']  # Train Dataset 80%
-    temp = loaded_dataset['test'].train_test_split(test_size=0.5, seed=seed_num, shuffle=True)
-    test = temp['test']  # Test Dataset
-    val = temp['train']  # Val Dataset
-    return train, val, test
+    def forward(self, input_ids, attention_mask, labels=None):
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        return outputs
 
-# Load evaluation metrics
-rouge = ROUGEScore(use_stemmer=True)
-bert_score = BERTScore()
+    def training_step(self, batch, batch_idx):
+        outputs = self(**batch)
+        self.log("train_loss", outputs.loss)
+        return outputs.loss
 
-def clear_cuda_memory():
-    gc.collect()
-    torch.cuda.empty_cache()
+    def validation_step(self, batch, batch_idx):
+        outputs = self(**batch)
+        self.log("val_loss", outputs.loss)
+        return outputs
 
-prefix = "summarize: "  # Required so the T5 model knows that we are going to summarize
-def preprocess_function(examples):
+    def test_step(self, batch, batch_idx):
+        outputs = self(**batch)
+        self.log("test_loss", outputs.loss)
+        return outputs
+
+    def configure_optimizers(self):
+        if optimizer_name == "adamw":
+            return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
+        elif optimizer_name == "sgd":
+            return torch.optim.SGD(self.parameters(), lr=self.learning_rate)
+        elif optimizer_name == "adam":
+            return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        else:
+            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
+
+    def compute_metrics(self, predictions, labels):
+        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
+        labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
+        decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
+        
+        result_rouge = self.rouge(preds=decoded_preds, target=decoded_labels)
+        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+        result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
+        
+        results = {**result_rouge, **result_brt_average_values}
+        return results
+
+def preprocess_function(examples, tokenizer, max_length):
+    prefix = "summarize: "
     inputs = [prefix + doc for doc in examples["article"]]
     model_inputs = tokenizer(inputs, padding=True, truncation=True, max_length=max_length)
     labels = tokenizer(text_target=examples["highlights"], padding=True, truncation=True, max_length=max_length)
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
-data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
+def load_and_prepare_data(tokenizer, max_length):
+    dataset = load_dataset(dataset_name, '3.0.0').shuffle(seed=seed_num)
+    train = dataset['train'].select(range(min(train_range, len(dataset['train']))))
+    temp = dataset['test'].train_test_split(test_size=0.5, seed=seed_num, shuffle=True)
+    test = temp['test'].select(range(min(test_range, len(temp['test']))))
+    val = temp['train'].select(range(min(val_range, len(temp['train']))))
 
-def safe_select(dataset, range_end):
-    available_samples = len(dataset)
-    actual_range = min(range_end, available_samples)
-    return dataset.select(range(actual_range))
-
-def prepare_datasets(train, val, test):
-    tokenized_dataset_train = safe_select(
-        train.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
-        train_range
+    train_dataset = train.map(
+        lambda x: preprocess_function(x, tokenizer, max_length),
+        batched=True,
+        remove_columns=train.column_names
     )
-    
-    tokenized_dataset_val = safe_select(
-        val.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
-        val_range
+    val_dataset = val.map(
+        lambda x: preprocess_function(x, tokenizer, max_length),
+        batched=True,
+        remove_columns=val.column_names
     )
-    
-    tokenized_dataset_test = safe_select(
-        test.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
-        test_range
-    )
-    
-    return tokenized_dataset_train, tokenized_dataset_val, tokenized_dataset_test
-
-# Print the actual sizes of the datasets
-def print_dataset_sizes(train, val, test):
-    print(f"Actual train dataset size: {len(train)}")
-    print(f"Actual validation dataset size: {len(val)}")
-    print(f"Actual test dataset size: {len(test)}")
-
-def compute_metrics(eval_pred):
-    predictions, labels = eval_pred
-    decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
-    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-    result_rouge = rouge(preds=decoded_preds, target=decoded_labels)
-    result_brt = bert_score(preds=decoded_preds, target=decoded_labels)
-    result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
-    results = {**result_rouge, **result_brt_average_values}
-    return results
-
-def get_optimizer(optimizer_name, model, learning_rate):
-    if optimizer_name == "adamw":
-        return torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    elif optimizer_name == "sgd":
-        return torch.optim.SGD(model.parameters(), lr=learning_rate)
-    elif optimizer_name == "adam":
-        return torch.optim.Adam(model.parameters(), lr=learning_rate)
-    else:
-        raise ValueError(f"Unsupported optimizer: {optimizer_name}")
-    
-# Assuming load_datasets function is defined above and returns train, test, val datasets
-def create_data_loaders(train_dataset, val_dataset, test_dataset, batch_size=16):
-    # Create DistributedSampler to shard the dataset
-    train_sampler = DistributedSampler(
-        train_dataset,
-        num_replicas=xm.xrt_world_size(),
-        rank=xm.get_ordinal(),
-        shuffle=True
-    )
-    val_sampler = DistributedSampler(
-        val_dataset,
-        num_replicas=xm.xrt_world_size(),
-        rank=xm.get_ordinal(),
-        shuffle=False
-    )
-    test_sampler = DistributedSampler(
-        test_dataset,
-        num_replicas=xm.xrt_world_size(),
-        rank=xm.get_ordinal(),
-        shuffle=False
+    test_dataset = test.map(
+        lambda x: preprocess_function(x, tokenizer, max_length),
+        batched=True,
+        remove_columns=test.column_names
     )
 
-    # Create the DataLoader for each dataset
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, drop_last=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler, drop_last=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, sampler=test_sampler, drop_last=True)
+    return train_dataset, val_dataset, test_dataset
 
-    # Wrap each DataLoader with ParallelLoader for use with XLA
-    train_parallel_loader = pl.ParallelLoader(train_loader, [device]).per_device_loader(device)
-    val_parallel_loader = pl.ParallelLoader(val_loader, [device]).per_device_loader(device)
-    test_parallel_loader = pl.ParallelLoader(test_loader, [device]).per_device_loader(device)
+def main():
+    pl.seed_everything(seed_num)
 
-    return train_parallel_loader, val_parallel_loader, test_parallel_loader
+    model = T5SummarizationModule(model_name, learning_rate)
+    tokenizer = model.tokenizer
 
-def model_init():
-    return AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    train_dataset, val_dataset, test_dataset = load_and_prepare_data(tokenizer, max_length)
 
-class CustomTrainer(Seq2SeqTrainer):
-    def create_optimizer(self):
-        self.optimizer = get_optimizer(optimizer_name, self.model, self.args.learning_rate)
-        print(f"\nOptimizer: {self.optimizer.__class__.__name__} with name: {optimizer_name} was created.\n")
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
 
-def main(seed_num):
-    train, val, test = load_datasets(seed_num)
-    tokenized_dataset_train, tokenized_dataset_val, tokenized_dataset_test = prepare_datasets(train, val, test)
-    train_loader, val_loader, test_loader = create_data_loaders(tokenized_dataset_train, tokenized_dataset_val, tokenized_dataset_test, batch_size=batch_size)
-    print_dataset_sizes(tokenized_dataset_train, tokenized_dataset_val, tokenized_dataset_test)
-    
-    training_args = Seq2SeqTrainingArguments(
-        output_dir=output_dir,
-        logging_strategy="steps",
-        evaluation_strategy="steps",
-        logging_steps=logging_steps,
-        eval_steps=eval_steps,
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=4,
-        save_total_limit=1,
-        num_train_epochs=epochs,
-        predict_with_generate=True,
-        seed=seed_num,
-        data_seed=seed_num,
-        fp16=True,
-        push_to_hub=False,
-        report_to="wandb",
-        run_name=wandb_run_name,
-        load_best_model_at_end=True,
-        metric_for_best_model='eval_loss',
-        greater_is_better=False,
-        save_strategy="steps",
-        save_steps=eval_steps,  # Save checkpoint at each evaluation
-        learning_rate=learning_rate,
+    train_loader = DataLoader(train_dataset, batch_size=4, collate_fn=data_collator, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=4, collate_fn=data_collator)
+    test_loader = DataLoader(test_dataset, batch_size=4, collate_fn=data_collator)
+
+    wandb_logger = WandbLogger(project="t5-summarization", name=wandb_run_name)
+
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=output_dir,
+        filename='best-checkpoint',
+        save_top_k=1,
+        verbose=True,
+        monitor='val_loss',
+        mode='min'
     )
 
-    trainer = CustomTrainer(
-        model=model_init(),
-        args=training_args,
-        train_dataset=tokenized_dataset_train,
-        eval_dataset=tokenized_dataset_val,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-        compute_metrics=compute_metrics,
+    trainer = pl.Trainer(
+        max_epochs=epochs,
+        logger=wandb_logger,
+        callbacks=[checkpoint_callback],
+        log_every_n_steps=1000,
+        val_check_interval=1000,
+        precision=16,
     )
-    
-    # Train the model
-    train_result = trainer.train()
-    
-    trainer.save_model(f"{output_dir}/best_model/")
-    
-    test_results = trainer.evaluate(tokenized_dataset_test, metric_key_prefix="test")
-    
-    # Save metrics and hyperparameters
+
+    trainer.fit(model, train_loader, val_loader)
+
+    test_results = trainer.test(model, test_loader)
+
     with open(f"{output_dir}/results_with_seed_{seed_num}.txt", "w") as f:
         f.write(f"Seed: {seed_num}\n")
         f.write(f"Model: {model_name}\n")
-        f.write(f"Dataset: {dataset}\n")
+        f.write(f"Dataset: {dataset_name}\n")
         f.write(f"Optimizer: {optimizer_name}\n")
         f.write(f'Training range: {train_range}\n')
         f.write(f'Test range: {test_range}\n')
         f.write(f'Validation range: {val_range}\n')
-        f.write(f'Actual train dataset size: {len(tokenized_dataset_train)}\n')
-        f.write(f'Actual validation dataset size: {len(tokenized_dataset_val)}\n')
-        f.write(f'Actual test dataset size: {len(tokenized_dataset_test)}\n')
+        f.write(f'Actual train dataset size: {len(train_dataset)}\n')
+        f.write(f'Actual validation dataset size: {len(val_dataset)}\n')
+        f.write(f'Actual test dataset size: {len(test_dataset)}\n')
         f.write(f'Learning rate: {learning_rate}\n')
         f.write("\nBest checkpoint:\n")
-        f.write(f"{trainer.state.best_model_checkpoint}\n")
+        f.write(f"{checkpoint_callback.best_model_path}\n")
         f.write("\nTest results:\n")
-        f.write("\n".join([f"{key}: {value}" for key, value in test_results.items()]))
-        
-    # Make the model log the test results
-    trainer.log_metrics("test", test_results)
+        f.write("\n".join([f"{key}: {value}" for key, value in test_results[0].items()]))
+
+    wandb.finish()
 
 if __name__ == "__main__":
-    print(f"Running with seed: {seed_num}")
-    main(seed_num)
+    main()
