@@ -181,7 +181,7 @@ def main():
         log_every_n_steps=10,
         val_check_interval=10,
         # precision="16-mixed",
-        accelerator='gpu',
+        accelerator='auto',
         devices=1,
         # strategy=strategy,
     )
