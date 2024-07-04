@@ -43,13 +43,18 @@ class T5SummarizationModule(pl.LightningModule):
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
-        metrics = MetricCollection([
-            ROUGEScore(use_stemmer=True), 
-            BERTScore(model_name_or_path='roberta-large', device=self.device)
-        ])
-        self.train_metrics = metrics.clone(prefix='train_')
-        self.valid_metrics = metrics.clone(prefix='val_')
-        self.test_metrics = metrics.clone(prefix='test_')
+        self.rouge = ROUGEScore(use_stemmer=True)
+        self.bert_score = BERTScore(model_name_or_path='roberta-large')
+        # metrics = MetricCollection([
+        #     ROUGEScore(use_stemmer=True), 
+        #     BERTScore(model_name_or_path='roberta-large')
+        # ])
+        # self.train_metrics = metrics.clone(prefix='train_')
+        # self.valid_metrics = metrics.clone(prefix='val_')
+        # self.test_metrics = metrics.clone(prefix='test_')
+        self.valid_metrics = {}
+        self.test_metrics = {}
+        self.train_metrics = {}
 
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -63,30 +68,51 @@ class T5SummarizationModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
         self.log("train_loss", outputs.loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
-        return outputs.loss
+        return outputs
 
     def validation_step(self, batch, batch_idx):
         outputs = self(**batch, predict_with_generate=True)
-        self.log("val_loss", outputs.loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("val_loss", outputs.loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+        return outputs
         # Generate summaries
-        generated_summaries = self.tokenizer.batch_decode(outputs.generated_ids, skip_special_tokens=True)
-        # Decode reference summaries
-        reference_summaries = self.tokenizer.batch_decode(batch["labels"], skip_special_tokens=True)
-        self.valid_metrics.update(preds=generated_summaries, target=reference_summaries)
+        # generated_summaries = self.tokenizer.batch_decode(outputs.generated_ids, skip_special_tokens=True)
+        # # Decode reference summaries
+        # reference_summaries = self.tokenizer.batch_decode(batch["labels"], skip_special_tokens=True)
+        # self.valid_metrics.update(preds=generated_summaries, target=reference_summaries)
         
+    def on_validation_batch_end(self, outputs, batch, batch_idx):
+        # how to just extend the outputs that already exist to a dictionary and then compute the metrics at the end of the epoch
+        if not hasattr(self, "validation_outputs"):
+            self.validation_outputs = {}
+            self.validation_outputs["generated_ids"] = outputs["generated_ids"]
+            self.validation_outputs["labels"] = batch["labels"]
+        else:
+            self.validation_outputs["generated_ids"] = torch.cat([self.validation_outputs["generated_ids"], outputs["generated_ids"]], dim=1)
+            self.validation_outputs["labels"] = torch.cat([self.validation_outputs["labels"], batch["labels"]], dim=1)
+
+        
+        # self.valid_metrics = self.compute_metrics(outputs["generated_ids"], outputs["labels"])
+        # self.log_dict(self.valid_metrics, on_step=False, on_epoch=True, sync_dist=True)
+    
     def on_validation_epoch_end(self):
-        results = self.valid_metrics.compute()
-        self.log_dict(results, on_epoch=True, sync_dist=True)
-        self.valid_metrics.reset()
+        self.valid_metrics = self.compute_metrics(self.validation_outputs["generated_ids"], self.validation_outputs["labels"])
+        self.log_dict(self.valid_metrics, on_step=False, on_epoch=True, sync_dist=True)
+        
+    
+    
+    # def on_validation_epoch_end(self):
+    #     results = self.valid_metrics.compute()
+    #     self.log_dict(results, on_epoch=True, sync_dist=True)
+    #     self.valid_metrics.reset()
 
     def test_step(self, batch, batch_idx):
         outputs = self(**batch, predict_with_generate=True)
         self.log("test_loss", outputs.loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         # Generate summaries
-        generated_summaries = self.tokenizer.batch_decode(outputs.generated_ids, skip_special_tokens=True)
-        # Decode reference summaries
-        reference_summaries = self.tokenizer.batch_decode(batch["labels"], skip_special_tokens=True)
-        self.test_metrics.update(preds=generated_summaries, target=reference_summaries)
+        # generated_summaries = self.tokenizer.batch_decode(outputs.generated_ids, skip_special_tokens=True)
+        # # Decode reference summaries
+        # reference_summaries = self.tokenizer.batch_decode(batch["labels"], skip_special_tokens=True)
+        # self.test_metrics.update(preds=generated_summaries, target=reference_summaries)
         
     def on_test_epoch_end(self):
         results = self.test_metrics.compute()
@@ -102,6 +128,20 @@ class T5SummarizationModule(pl.LightningModule):
             return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         else:
             raise ValueError(f"Unsupported optimizer: {optimizer_name}")
+        
+    def compute_metrics(self, predictions, labels):
+        # Make predictions and labels Tensor.cpu() first
+        predictions = predictions.detach().cpu().numpy()
+        labels = labels.detach().cpu().numpy()
+        # predictions = np.where(predictions != -100, predictions, self.tokenizer.pad_token_id)
+        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
+        labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
+        decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
+        result_rouge = self.rouge(preds=decoded_preds, target=decoded_labels)
+        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+        result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
+        results = {**result_rouge, **result_brt_average_values}
+        return results
 
 def preprocess_function(examples, tokenizer, max_length):
     prefix = "summarize: "
