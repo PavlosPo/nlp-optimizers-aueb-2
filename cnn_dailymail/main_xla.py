@@ -9,13 +9,13 @@ from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
 # from torchmetrics import MetricCollection
 import numpy as np
-import wandb
+# import wandb
 import os
 import argparse
 from torch.utils.data import DataLoader
 from icecream import ic
 
-wandb.require("core")
+# wandb.require("core")
 os.environ["WANDB_MODE"] = "online"
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
@@ -221,7 +221,7 @@ def main():
         f.write("\nTest results:\n")
         f.write("\n".join([f"{key}: {value}" for key, value in test_results[0].items()]))
 
-    wandb.finish()
+    wandb_logger.finish()
 
 if __name__ == "__main__":
     main()
