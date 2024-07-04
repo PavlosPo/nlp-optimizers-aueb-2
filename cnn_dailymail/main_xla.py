@@ -86,12 +86,22 @@ class T5SummarizationModule(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         outputs = self(**batch, predict_with_generate=True)
         self.log("test_loss", outputs.loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        return outputs
+    
+    def on_test_batch_end(self, outputs, batch, batch_idx):
+        # how to just extend the outputs that already exist to a dictionary and then compute the metrics at the end of the epoch
+        if not hasattr(self, "test_outputs"):
+            self.test_outputs = {}
+            self.test_outputs["generated_ids"] = outputs["generated_ids"]
+            self.test_outputs["labels"] = batch["labels"]
+        else:
+            self.test_outputs["generated_ids"] = torch.cat([self.test_outputs["generated_ids"], outputs["generated_ids"]], dim=1)
+            self.test_outputs["labels"] = torch.cat([self.test_outputs["labels"], batch["labels"]], dim=1)
 
         
     def on_test_epoch_end(self):
-        results = self.test_metrics.compute()
-        self.log_dict(results, on_epoch=True, sync_dist=True)
-        self.test_metrics.reset()
+        self.test_metrics = self.compute_metrics(self.test_outputs["generated_ids"], self.test_outputs["labels"])
+        self.log_dict(self.test_metrics, on_step=False, on_epoch=True, sync_dist=True)
 
     def configure_optimizers(self):
         if optimizer_name == "adamw":
@@ -163,7 +173,7 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=4, collate_fn=data_collator, num_workers=7)
     test_loader = DataLoader(test_dataset, batch_size=4, collate_fn=data_collator, num_workers=7)
 
-    wandb_logger = WandbLogger(project="t5-summarization-xla", name=wandb_run_name)
+    wandb_logger = WandbLogger(project="t5-summarization-xla", name=wandb_run_name, log_model='all')
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
         filename='best-checkpoint',
