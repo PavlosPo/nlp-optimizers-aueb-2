@@ -161,7 +161,7 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=4, collate_fn=data_collator, num_workers=7)
     test_loader = DataLoader(test_dataset, batch_size=4, collate_fn=data_collator, num_workers=7)
 
-    wandb_logger = WandbLogger(project="t5-summarization-xla", name=wandb_run_name)
+    wandb_logger = WandbLogger(project="t5-summarization-xla")
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
         filename='best-checkpoint',
