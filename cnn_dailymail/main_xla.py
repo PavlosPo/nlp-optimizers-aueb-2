@@ -9,13 +9,13 @@ from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
 # from torchmetrics import MetricCollection
 import numpy as np
-# import wandb
+import wandb
 import os
 import argparse
 from torch.utils.data import DataLoader
 from icecream import ic
 
-# wandb.require("core")
+wandb.require("core")
 os.environ["WANDB_MODE"] = "online"
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
@@ -46,7 +46,7 @@ class T5SummarizationModule(pl.LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.rouge = ROUGEScore(use_stemmer=True)
-        self.bert_score = BERTScore(model_name_or_path='roberta-large')
+        self.bert_score = BERTScore(model_name_or_path='roberta-large', device=self.device)
         self.valid_metrics = {}
         self.test_metrics = {}
         self.train_metrics = {}
@@ -62,42 +62,31 @@ class T5SummarizationModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
-        self.log("train_loss", outputs.loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+        return outputs
+    
+    def on_train_batch_end(self, outputs, batch, batch_idx):
+        self.log("train_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         return outputs
 
     def validation_step(self, batch, batch_idx):
-        outputs = self(**batch, predict_with_generate=True)
-        self.log("val_loss", outputs.loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+        with torch.no_grad():
+            outputs = self(**batch, predict_with_generate=True)
         return outputs
-        
-    def on_validation_batch_end(self, outputs, batch, batch_idx):
-        # how to just extend the outputs that already exist to a dictionary and then compute the metrics at the end of the epoch
-        if not hasattr(self, "validation_outputs"):
-            self.validation_outputs = {}
-            self.validation_outputs["generated_ids"] = outputs["generated_ids"]
-            self.validation_outputs["labels"] = batch["labels"]
-        else:
-            self.validation_outputs["generated_ids"] = torch.cat([self.validation_outputs["generated_ids"], outputs["generated_ids"]], dim=1)
-            self.validation_outputs["labels"] = torch.cat([self.validation_outputs["labels"], batch["labels"]], dim=1)
 
-    def on_validation_epoch_end(self):
-        self.valid_metrics = self.compute_metrics(self.validation_outputs["generated_ids"], self.validation_outputs["labels"])
-        self.log_dict(self.valid_metrics, on_step=False, on_epoch=True, sync_dist=True)
+    def on_validation_batch_end(self, outputs, batch, batch_idx):
+        self.log("val_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+        results = self.compute_metrics(outputs["generated_ids"].cpu(), batch["labels"].cpu())
+        # ic(results)
 
     def test_step(self, batch, batch_idx):
-        outputs = self(**batch, predict_with_generate=True)
-        self.log("test_loss", outputs.loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        with torch.no_grad():
+            outputs = self(**batch, predict_with_generate=True)
         return outputs
     
     def on_test_batch_end(self, outputs, batch, batch_idx):
-        # how to just extend the outputs that already exist to a dictionary and then compute the metrics at the end of the epoch
-        if not hasattr(self, "test_outputs"):
-            self.test_outputs = {}
-            self.test_outputs["generated_ids"] = outputs["generated_ids"]
-            self.test_outputs["labels"] = batch["labels"]
-        else:
-            self.test_outputs["generated_ids"] = torch.cat([self.test_outputs["generated_ids"], outputs["generated_ids"]], dim=1)
-            self.test_outputs["labels"] = torch.cat([self.test_outputs["labels"], batch["labels"]], dim=1)
+        self.log("test_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+        results = self.compute_metrics(outputs["generated_ids"].cpu(), batch["labels"].cpu())
+        # ic(results)
 
         
     def on_test_epoch_end(self):
@@ -115,16 +104,14 @@ class T5SummarizationModule(pl.LightningModule):
             raise ValueError(f"Unsupported optimizer: {optimizer_name}")
         
     def compute_metrics(self, predictions, labels):
-        # Make predictions and labels Tensor.cpu() first
         predictions = predictions.detach().cpu().numpy()
         labels = labels.detach().cpu().numpy()
-        # predictions = np.where(predictions != -100, predictions, self.tokenizer.pad_token_id)
         decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
         labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
         decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
         result_rouge = self.rouge(preds=decoded_preds, target=decoded_labels)
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
-        result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
+        result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
         results = {**result_rouge, **result_brt_average_values}
         return results
 
@@ -191,7 +178,7 @@ def main():
         callbacks=[checkpoint_callback],
         log_every_n_steps=10,
         val_check_interval=10,
-        num_sanity_val_steps=0,
+        # num_sanity_val_steps=0,
         enable_checkpointing=True,
         
         # precision="16-mixed",
@@ -220,7 +207,7 @@ def main():
         f.write("\nBest checkpoint:\n")
         f.write(f"{checkpoint_callback.best_model_path}\n")
         f.write("\nTest results:\n")
-        f.write("\n".join([f"{key}: {value}" for key, value in test_results[0].items()]))
+        f.write("\n".join([f"{key}: {value}" for key, value in test_results.items()]))
 
     wandb_logger.finish()
 
