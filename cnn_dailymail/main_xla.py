@@ -41,6 +41,7 @@ learning_rate = 9.9879589111261e-06
 class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate):
         super().__init__()
+        self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
@@ -173,7 +174,7 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=4, collate_fn=data_collator, num_workers=7)
     test_loader = DataLoader(test_dataset, batch_size=4, collate_fn=data_collator, num_workers=7)
 
-    wandb_logger = WandbLogger(project="t5-summarization-xla", name=wandb_run_name, log_model='all')
+    wandb_logger = WandbLogger(project="t5-summarization-xla", name=wandb_run_name)
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
         filename='best-checkpoint',
