@@ -180,10 +180,13 @@ def main():
         callbacks=[checkpoint_callback],
         log_every_n_steps=10,
         val_check_interval=10,
+        num_sanity_val_steps=0,
+        enable_checkpointing=True,
+        
         # precision="16-mixed",
         accelerator='auto',
-        devices=1,
-        # strategy=strategy,
+        devices='auto',
+        strategy='auto',
     )
 
     trainer.fit(model, train_loader, val_loader)
