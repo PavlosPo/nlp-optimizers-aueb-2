@@ -198,6 +198,13 @@ def main(seed_num):
         
     # Make the model log the test results
     trainer.log_metrics("test", test_results)
+    
+    
+def _mp_fn(index):
+    # For xla_spawn (TPUs)
+    print("Running with TPU")
+    print(f"Running with seed: {seed_num}")
+    main(seed_num)
 
 if __name__ == "__main__":
     print(f"Running with seed: {seed_num}")
