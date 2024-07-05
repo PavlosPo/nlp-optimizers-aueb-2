@@ -20,7 +20,7 @@ os.environ["WANDB_MODE"] = "online"
 
 # Argument parser for GPU ID and seed number
 parser = argparse.ArgumentParser()
-parser.add_argument("--gpu", type=int, required=True, help="GPU ID to use for training")
+parser.add_argument("--gpu", type=int, required=False, help="GPU ID to use for training")
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
 args = parser.parse_args()
 
@@ -30,7 +30,9 @@ model_name = "google-t5/t5-small"
 dataset = "cnn_dailymail"
 seed_num = args.seed
 max_length = 512
-device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
+# if gpu was given then set device
+if args.gpu:
+    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
 wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}_{seed_num}"
 output_dir = f"{optimizer_name}/{dataset}/best_{model_name.split('-')[1].split('/')[0]}"
 # hyper_param_output_name = "hyperparameter_lr_only"  # Where/How to save the hyperparameters
