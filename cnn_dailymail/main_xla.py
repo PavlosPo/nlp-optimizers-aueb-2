@@ -19,7 +19,7 @@ from icecream import ic
 
 # wandb.require("core")
 # os.environ["WANDB_MODE"] = "online"
-# os.environ["TOKENIZERS_PARALLELISM"] = 'false'
+os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
@@ -41,13 +41,14 @@ epochs = 4
 learning_rate = 9.9879589111261e-06
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate):
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw"):
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
-        self.rouge = ROUGEScore(use_stemmer=True)
+        self.optimizer_name = optimizer_name
+        self.rouge_score = ROUGEScore(use_stemmer=True)
         self.bert_score = BERTScore(model_name_or_path='roberta-large', device=self.device)
         self.valid_predictions = []
         self.valid_labels = []
@@ -57,25 +58,14 @@ class T5SummarizationModule(pl.LightningModule):
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         if predict_with_generate:
-            generated_ids = self.model.generate(input_ids, attention_mask=attention_mask, max_length=max_length)
+            generated_ids = self.model.generate(input_ids, attention_mask=attention_mask, max_length=150)  # Adjust max_length as needed
             outputs['generated_ids'] = generated_ids
-            return outputs
         return outputs
-    
 
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
         self.log("train_loss", outputs['loss'], on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return outputs
-    
-    # def on_train_batch_end(self, outputs, batch, batch_idx):
-    #     self.log("train_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
-    #     return outputs
-
-    # def validation_step(self, batch, batch_idx):
-    #     with torch.no_grad():
-    #         outputs = self(**batch, predict_with_generate=True)
-    #     return outputs
 
     def validation_step(self, batch, batch_idx):
         outputs = self(**batch, predict_with_generate=True)
@@ -83,66 +73,73 @@ class T5SummarizationModule(pl.LightningModule):
         self.valid_predictions.extend(outputs['generated_ids'].cpu().numpy())
         self.valid_labels.extend(batch['labels'].cpu().numpy())
         return outputs
-    
-    
-    # def on_validation_batch_end(self, outputs, batch, batch_idx):
-    #     self.log("val_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
-    #     results = self.compute_metrics(outputs["generated_ids"].cpu(), batch["labels"].cpu())
-    #     # ic(results)
-    
-    def on_validation_epoch_end(self):
-        metrics = self.compute_metrics(self.valid_predictions, self.valid_labels)
-        self.log_dict({f"val_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
-        self.valid_predictions = []
-        self.valid_labels = []
 
-    # def test_step(self, batch, batch_idx):
-    #     with torch.no_grad():
-    #         outputs = self(**batch, predict_with_generate=True)
-    #     return outputs
     def test_step(self, batch, batch_idx):
         outputs = self(**batch, predict_with_generate=True)
         self.log("test_loss", outputs['loss'], on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         self.test_predictions.extend(outputs['generated_ids'].cpu().numpy())
         self.test_labels.extend(batch['labels'].cpu().numpy())
         return outputs
-    
-    # def on_test_batch_end(self, outputs, batch, batch_idx):
-    #     self.log("test_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
-    #     results = self.compute_metrics(outputs["generated_ids"].cpu(), batch["labels"].cpu())
-    #     # ic(results)
 
-        
-    # def on_test_epoch_end(self):
-    #     self.test_metrics = self.compute_metrics(self.test_outputs["generated_ids"], self.test_outputs["labels"])
-    #     self.log_dict(self.test_metrics, on_step=False, on_epoch=True, sync_dist=True)
+    def on_validation_epoch_end(self):
+        self._log_metrics('val', self.valid_predictions, self.valid_labels)
+        self.valid_predictions = []
+        self.valid_labels = []
+
     def on_test_epoch_end(self):
-        metrics = self.compute_metrics(self.test_predictions, self.test_labels)
-        self.log_dict({f"test_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
+        self._log_metrics('test', self.test_predictions, self.test_labels)
         self.test_predictions = []
         self.test_labels = []
 
-    def configure_optimizers(self):
-        if optimizer_name == "adamw":
-            return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
-        elif optimizer_name == "sgd":
-            return torch.optim.SGD(self.parameters(), lr=self.learning_rate)
-        elif optimizer_name == "adam":
-            return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        else:
-            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
+    def _log_metrics(self, prefix, predictions, labels):
+        ic(f"\nDebug information for {prefix}_predictions:")
+        ic(len(predictions))
+        ic(type(predictions))
+        if len(predictions) > 0:
+            ic(type(predictions[0]))
+            ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
         
+        ic(f"\nDebug information for {prefix}_labels:")
+        ic(len(labels))
+        ic(type(labels))
+        if len(labels) > 0:
+            ic(type(labels[0]))
+            ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
+
+        metrics = self.compute_metrics(predictions, labels)
+        self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
+
     def compute_metrics(self, predictions, labels):
-        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
-        labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
-        decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
+        ic("Shapes inside compute_metrics:")
+        ic(len(predictions), predictions[0].shape if predictions else None)
+        ic(len(labels), labels[0].shape if labels else None)
         
-        result_rouge = self.rouge(preds=decoded_preds, target=decoded_labels)
+        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
+        
+        # Process labels
+        processed_labels = []
+        for label in labels:
+            label = label[label != -100]  # Remove padding
+            processed_labels.append(label)
+        
+        decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
+        
+        result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         
         result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
         results = {**result_rouge, **result_brt_average_values}
         return results
+
+    def configure_optimizers(self):
+        if self.optimizer_name == "adamw":
+            return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "sgd":
+            return torch.optim.SGD(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "adam":
+            return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        else:
+            raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
 
 def preprocess_function(examples, tokenizer, max_length):
     prefix = "summarize: "
@@ -154,26 +151,26 @@ def preprocess_function(examples, tokenizer, max_length):
 
 def load_and_prepare_data(tokenizer, max_length):
     dataset = load_dataset(dataset_name, '3.0.0').shuffle(seed=seed_num)
-    train = dataset['train'].select(range(min(train_range, len(dataset['train']))))
+    train = dataset['train']
     temp = dataset['test'].train_test_split(test_size=0.5, seed=seed_num, shuffle=True)
-    test = temp['test'].select(range(min(test_range, len(temp['test']))))
-    val = temp['train'].select(range(min(val_range, len(temp['train']))))
+    test = temp['test']
+    val = temp['train']
 
     train_dataset = train.map(
         lambda x: preprocess_function(x, tokenizer, max_length),
         batched=True,
         remove_columns=train.column_names
-    )
+    ).select(range(min(train_range, len(dataset['train']))))
     val_dataset = val.map(
         lambda x: preprocess_function(x, tokenizer, max_length),
         batched=True,
         remove_columns=val.column_names
-    )
+    ).select(range(min(val_range, len(temp['train']))))
     test_dataset = test.map(
         lambda x: preprocess_function(x, tokenizer, max_length),
         batched=True,
         remove_columns=test.column_names
-    )
+    ).select(range(min(test_range, len(temp['test']))))
 
     return train_dataset, val_dataset, test_dataset
 
@@ -205,7 +202,7 @@ def main():
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=logger,
-        #callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback],
         log_every_n_steps=10,
         val_check_interval=10,
         # num_sanity_val_steps=0,
