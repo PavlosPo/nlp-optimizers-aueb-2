@@ -47,9 +47,10 @@ class T5SummarizationModule(pl.LightningModule):
         self.learning_rate = learning_rate
         self.rouge = ROUGEScore(use_stemmer=True)
         self.bert_score = BERTScore(model_name_or_path='roberta-large', device=self.device)
-        self.valid_metrics = {}
-        self.test_metrics = {}
-        self.train_metrics = {}
+        self.valid_predictions = []
+        self.valid_labels = []
+        self.test_predictions = []
+        self.test_labels = []
 
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -62,36 +63,62 @@ class T5SummarizationModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
+        self.log("train_loss", outputs['loss'], on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return outputs
     
-    def on_train_batch_end(self, outputs, batch, batch_idx):
-        self.log("train_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
-        return outputs
+    # def on_train_batch_end(self, outputs, batch, batch_idx):
+    #     self.log("train_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+    #     return outputs
+
+    # def validation_step(self, batch, batch_idx):
+    #     with torch.no_grad():
+    #         outputs = self(**batch, predict_with_generate=True)
+    #     return outputs
 
     def validation_step(self, batch, batch_idx):
-        with torch.no_grad():
-            outputs = self(**batch, predict_with_generate=True)
-        return outputs
-
-    def on_validation_batch_end(self, outputs, batch, batch_idx):
-        self.log("val_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
-        results = self.compute_metrics(outputs["generated_ids"].cpu(), batch["labels"].cpu())
-        # ic(results)
-
-    def test_step(self, batch, batch_idx):
-        with torch.no_grad():
-            outputs = self(**batch, predict_with_generate=True)
+        outputs = self(**batch, predict_with_generate=True)
+        self.log("val_loss", outputs['loss'], on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.valid_predictions.extend(outputs['generated_ids'].cpu().numpy())
+        self.valid_labels.extend(batch['labels'].cpu().numpy())
         return outputs
     
-    def on_test_batch_end(self, outputs, batch, batch_idx):
-        self.log("test_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
-        results = self.compute_metrics(outputs["generated_ids"].cpu(), batch["labels"].cpu())
-        # ic(results)
+    
+    # def on_validation_batch_end(self, outputs, batch, batch_idx):
+    #     self.log("val_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+    #     results = self.compute_metrics(outputs["generated_ids"].cpu(), batch["labels"].cpu())
+    #     # ic(results)
+    
+    def on_validation_epoch_end(self):
+        metrics = self.compute_metrics(self.valid_predictions, self.valid_labels)
+        self.log_dict({f"val_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
+        self.valid_predictions = []
+        self.valid_labels = []
+
+    # def test_step(self, batch, batch_idx):
+    #     with torch.no_grad():
+    #         outputs = self(**batch, predict_with_generate=True)
+    #     return outputs
+    def test_step(self, batch, batch_idx):
+        outputs = self(**batch, predict_with_generate=True)
+        self.log("test_loss", outputs['loss'], on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.test_predictions.extend(outputs['generated_ids'].cpu().numpy())
+        self.test_labels.extend(batch['labels'].cpu().numpy())
+        return outputs
+    
+    # def on_test_batch_end(self, outputs, batch, batch_idx):
+    #     self.log("test_loss", outputs['loss'], on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+    #     results = self.compute_metrics(outputs["generated_ids"].cpu(), batch["labels"].cpu())
+    #     # ic(results)
 
         
+    # def on_test_epoch_end(self):
+    #     self.test_metrics = self.compute_metrics(self.test_outputs["generated_ids"], self.test_outputs["labels"])
+    #     self.log_dict(self.test_metrics, on_step=False, on_epoch=True, sync_dist=True)
     def on_test_epoch_end(self):
-        self.test_metrics = self.compute_metrics(self.test_outputs["generated_ids"], self.test_outputs["labels"])
-        self.log_dict(self.test_metrics, on_step=False, on_epoch=True, sync_dist=True)
+        metrics = self.compute_metrics(self.test_predictions, self.test_labels)
+        self.log_dict({f"test_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
+        self.test_predictions = []
+        self.test_labels = []
 
     def configure_optimizers(self):
         if optimizer_name == "adamw":
@@ -104,13 +131,13 @@ class T5SummarizationModule(pl.LightningModule):
             raise ValueError(f"Unsupported optimizer: {optimizer_name}")
         
     def compute_metrics(self, predictions, labels):
-        predictions = predictions.detach().cpu().numpy()
-        labels = labels.detach().cpu().numpy()
         decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
         labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
         decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
+        
         result_rouge = self.rouge(preds=decoded_preds, target=decoded_labels)
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+        
         result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
         results = {**result_rouge, **result_brt_average_values}
         return results
