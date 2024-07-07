@@ -8,6 +8,8 @@ from datasets import load_dataset
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
 # from torchmetrics import MetricCollection
+import tensorboard
+from lightning.pytorch.loggers import TensorBoardLogger
 import numpy as np
 import wandb
 import os
@@ -15,9 +17,9 @@ import argparse
 from torch.utils.data import DataLoader
 from icecream import ic
 
-wandb.require("core")
-os.environ["WANDB_MODE"] = "online"
-os.environ["TOKENIZERS_PARALLELISM"] = 'false'
+# wandb.require("core")
+# os.environ["WANDB_MODE"] = "online"
+# os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
@@ -188,7 +190,8 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=4, collate_fn=data_collator, num_workers=7)
     test_loader = DataLoader(test_dataset, batch_size=4, collate_fn=data_collator, num_workers=7)
 
-    wandb_logger = WandbLogger(project="t5-summarization-xla")
+    #wandb_logger = WandbLogger(project="t5-summarization-xla")
+    logger = TensorBoardLogger("tb_logs", name="my_model")
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
         filename='best-checkpoint',
@@ -201,8 +204,8 @@ def main():
     # strategy = DDPStrategy(find_unused_parameters=False)
     trainer = pl.Trainer(
         max_epochs=epochs,
-        logger=wandb_logger,
-        callbacks=[checkpoint_callback],
+        logger=logger,
+        #callbacks=[checkpoint_callback],
         log_every_n_steps=10,
         val_check_interval=10,
         # num_sanity_val_steps=0,
@@ -236,7 +239,7 @@ def main():
         f.write("\nTest results:\n")
         f.write("\n".join([f"{key}: {value}" for key, value in test_results.items()]))
 
-    wandb_logger.finish()
+   # wandb_logger.finish()
 
 if __name__ == "__main__":
     main()
