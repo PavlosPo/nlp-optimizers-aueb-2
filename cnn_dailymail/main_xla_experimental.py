@@ -84,26 +84,26 @@ def preprocess_function(examples, tokenizer, max_length):
 
 def load_and_prepare_data(tokenizer, max_length):
     dataset = load_dataset(dataset_name, '3.0.0').shuffle(seed=seed_num)
-    train = dataset['train']
+    train = dataset['train'].select(range(min(train_range, len(dataset['train']))))
     temp = dataset['test'].train_test_split(test_size=0.5, seed=seed_num, shuffle=True)
-    test = temp['test']
-    val = temp['train']
+    test = temp['test'].select(range(min(test_range, len(temp['test']))))
+    val = temp['train'].select(range(min(val_range, len(temp['train']))))
 
     train_dataset = train.map(
         lambda x: preprocess_function(x, tokenizer, max_length),
         batched=True,
         remove_columns=train.column_names
-    ).select(range(min(train_range, len(dataset['train']))))
+    )
     val_dataset = val.map(
         lambda x: preprocess_function(x, tokenizer, max_length),
         batched=True,
         remove_columns=val.column_names
-    ).select(range(min(val_range, len(temp['train']))))
+    )
     test_dataset = test.map(
         lambda x: preprocess_function(x, tokenizer, max_length),
         batched=True,
         remove_columns=test.column_names
-    ).select(range(min(test_range, len(temp['test']))))
+    )
 
     return train_dataset, val_dataset, test_dataset
 
