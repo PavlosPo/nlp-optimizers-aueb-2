@@ -1,5 +1,12 @@
 import torch
 import pytorch_lightning as pl
+
+try:
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.parallel_loader as pl
+    import torch_xla.distributed.xla_multiprocessing as xmp
+except ImportError:
+    print("Torch XLA is not installed. Please install via the command line: pip install torch_xla")
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM
@@ -30,6 +37,7 @@ test_range = 1500
 val_range = 1500
 epochs = 4
 learning_rate = 9.9879589111261e-06
+batch_size = 64
 
 class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw"):
@@ -65,6 +73,10 @@ class T5SummarizationModule(pl.LightningModule):
         return outputs.loss
 
     def configure_optimizers(self):
+        optimizer = self._get_optimizer()
+        return xm.optimizer_step(optimizer)
+
+    def _get_optimizer(self):
         if self.optimizer_name == "adamw":
             return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "sgd":
@@ -116,9 +128,9 @@ def main():
     train_dataset, val_dataset, test_dataset = load_and_prepare_data(tokenizer, max_length)
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
 
-    train_loader = DataLoader(train_dataset, batch_size=4, collate_fn=data_collator, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=4, collate_fn=data_collator, num_workers=0)
-    test_loader = DataLoader(test_dataset, batch_size=4, collate_fn=data_collator, num_workers=0)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator, num_workers=0)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator, num_workers=0)
 
     logger = TensorBoardLogger("tb_logs", name="my_model")
     checkpoint_callback = ModelCheckpoint(
@@ -135,11 +147,13 @@ def main():
         logger=logger,
         callbacks=[checkpoint_callback],
         log_every_n_steps=10,
-        val_check_interval=0.25,
+        val_check_interval=1,
         num_sanity_val_steps=0,
         enable_checkpointing=True,
         accelerator='tpu',
         devices=4,
+        accumulate_grad_batches=8,
+        precision="16-mixed"
     )
 
     trainer.fit(model, train_loader, val_loader)
