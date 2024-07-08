@@ -153,7 +153,7 @@ def main():
         accelerator='tpu',
         devices=4,
         accumulate_grad_batches=8,
-        precision="16-mixed"
+        precision="bf16-true"
     )
 
     trainer.fit(model, train_loader, val_loader)
