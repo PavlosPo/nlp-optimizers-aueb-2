@@ -209,9 +209,8 @@ def main():
         enable_checkpointing=True,
         
         # precision="16-mixed",
-        accelerator='auto',
-        devices='auto',
-        strategy='auto',
+        accelerator='tpu',
+        devices=8,
     )
 
     trainer.fit(model, train_loader, val_loader)
