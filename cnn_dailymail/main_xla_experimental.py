@@ -139,7 +139,7 @@ def main():
         num_sanity_val_steps=0,
         enable_checkpointing=True,
         accelerator='tpu',
-        devices=8,
+        devices=4,
     )
 
     trainer.fit(model, train_loader, val_loader)
