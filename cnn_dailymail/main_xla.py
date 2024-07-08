@@ -240,7 +240,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-def _mp_fn(index):
+def _mp_fn():
     # For xla_spawn (TPUs)
     print("Running with TPU")
     main()
