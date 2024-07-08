@@ -20,7 +20,7 @@ args = parser.parse_args()
 
 # Parameters
 optimizer_name = args.optim
-model_name = "google/t5-small"
+model_name = "google-t5/t5-small"
 dataset_name = "cnn_dailymail"
 seed_num = args.seed
 max_length = 512
