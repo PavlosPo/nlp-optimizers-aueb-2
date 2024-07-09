@@ -165,8 +165,8 @@ def main():
         precision="bf16-true"
     )
 
-    trainer.fit(model)
-    test_results = trainer.test(model)
+    trainer.fit(model, train_loader, val_loader)
+    test_results = trainer.test(model, test_loader)
     
     os.makedirs(output_dir, exist_ok=True)
 
