@@ -57,36 +57,26 @@ class T5SummarizationModule(pl.LightningModule):
         return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
 
     def training_step(self, batch, batch_idx):
-        # Move batch to TPU
-        batch = {k: v.to(xm.xla_device()) for k, v in batch.items()}
-        
-        # Forward pass
         outputs = self(**batch)
         loss = outputs.loss
-
-        # Log the loss
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-
-        # Optimize
-        optimizer = self.optimizers()
-        optimizer.zero_grad()
-        loss.backward()
-        xm.optimizer_step(optimizer)
-
-        return loss
+        return loss  # Always return the loss
 
     def validation_step(self, batch, batch_idx):
         outputs = self(**batch)
-        self.log("val_loss", outputs.loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return outputs.loss
+        loss = outputs.loss
+        self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss
 
     def test_step(self, batch, batch_idx):
         outputs = self(**batch)
-        self.log("test_loss", outputs.loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return outputs.loss
+        loss = outputs.loss
+        self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss
 
     def configure_optimizers(self):
-        return self._get_optimizer()
+        optimizer = self._get_optimizer()
+        return optimizer
 
     def _get_optimizer(self):
         if self.optimizer_name == "adamw":
@@ -99,15 +89,12 @@ class T5SummarizationModule(pl.LightningModule):
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
 
     def train_dataloader(self):
-        # Assuming you have a DataLoader called `train_loader`
         return pl_xla.MpDeviceLoader(train_loader, xm.xla_device())
 
     def val_dataloader(self):
-        # Assuming you have a DataLoader called `val_loader`
         return pl_xla.MpDeviceLoader(val_loader, xm.xla_device())
 
     def test_dataloader(self):
-        # Assuming you have a DataLoader called `test_loader`
         return pl_xla.MpDeviceLoader(test_loader, xm.xla_device())
 
 def preprocess_function(examples, tokenizer, max_length):
