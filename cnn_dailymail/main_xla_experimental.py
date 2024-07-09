@@ -4,6 +4,8 @@ import pytorch_lightning as pl
 try:
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.parallel_loader as pl_xla
+    import torch_xla.debug.metrics as met
+    import torch_xla.distributed.xla_multiprocessing as xmp
 except ImportError:
     print("Torch XLA is not installed. Please install via the command line: pip install torch_xla")
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -188,7 +190,7 @@ def main():
         f.write("\n".join([f"{key}: {value}" for key, value in test_results[0].items()]))
 
 if __name__ == "__main__":
-    main()
+    xmp.spawn(main, nprocs=8, start_method='fork')
     
 def _mp_fn():
     # For xla_spawn (TPUs)
