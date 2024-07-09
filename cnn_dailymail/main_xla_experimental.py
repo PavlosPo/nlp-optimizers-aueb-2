@@ -39,13 +39,16 @@ learning_rate = 9.9879589111261e-06
 batch_size = 64
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw"):
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw", train_loader=None, val_loader=None, test_loader=None):
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.test_loader = test_loader
         self.rouge_score = ROUGEScore(use_stemmer=True)
         self.bert_score = BERTScore(model_name_or_path='roberta-large')
         self.valid_predictions = []
@@ -88,15 +91,6 @@ class T5SummarizationModule(pl.LightningModule):
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
 
-    def train_dataloader(self):
-        return pl_xla.MpDeviceLoader(train_loader, xm.xla_device())
-
-    def val_dataloader(self):
-        return pl_xla.MpDeviceLoader(val_loader, xm.xla_device())
-
-    def test_dataloader(self):
-        return pl_xla.MpDeviceLoader(test_loader, xm.xla_device())
-
 def preprocess_function(examples, tokenizer, max_length):
     prefix = "summarize: "
     inputs = [prefix + doc for doc in examples["article"]]
@@ -132,10 +126,10 @@ def load_and_prepare_data(tokenizer, max_length):
 
 def main():
     pl.seed_everything(seed_num)
-
+    
     model = T5SummarizationModule(model_name, learning_rate, optimizer_name)
     tokenizer = model.tokenizer
-
+    
     train_dataset, val_dataset, test_dataset = load_and_prepare_data(tokenizer, max_length)
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
 
@@ -143,6 +137,10 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator, num_workers=0)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator, num_workers=0)
 
+    train_loader = pl_xla.MpDeviceLoader(train_loader, xm.xla_device())
+    val_loader = pl_xla.MpDeviceLoader(val_loader, xm.xla_device())
+    test_loader = pl_xla.MpDeviceLoader(test_loader, xm.xla_device())
+    
     logger = TensorBoardLogger("tb_logs", name="my_model")
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
@@ -167,8 +165,8 @@ def main():
         precision="bf16-true"
     )
 
-    trainer.fit(model, train_loader, val_loader)
-    test_results = trainer.test(model, test_loader)
+    trainer.fit(model)
+    test_results = trainer.test(model)
     
     os.makedirs(output_dir, exist_ok=True)
 
