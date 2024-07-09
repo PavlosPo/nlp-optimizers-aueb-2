@@ -190,7 +190,13 @@ def main():
         f.write("\n".join([f"{key}: {value}" for key, value in test_results[0].items()]))
 
 if __name__ == "__main__":
-    xmp.spawn(main, nprocs=8, start_method='fork')
+    import os
+    os.environ['PJRT_DEVICE'] = 'TPU'  # Ensure this is set
+    try:
+        xm.mark_step()  # Initialize TPU
+        xmp.spawn(main, nprocs=1, start_method='fork')  # Try reducing nprocs
+    except Exception as e:
+        print(f"An error occurred: {e}")
     
 def _mp_fn():
     # For xla_spawn (TPUs)
