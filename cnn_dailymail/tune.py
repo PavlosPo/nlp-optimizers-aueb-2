@@ -57,7 +57,7 @@ def load_datasets(seed_num):
 
 # Load evaluation metrics
 rouge_score = ROUGEScore(use_stemmer=True)
-bert_score = BERTScore()
+bert_score = BERTScore(device=device)
 
 def clear_cuda_memory():
     gc.collect()
