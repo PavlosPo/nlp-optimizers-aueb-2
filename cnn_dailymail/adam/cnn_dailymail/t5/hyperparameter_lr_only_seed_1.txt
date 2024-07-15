@@ -10,4 +10,4 @@ Actual validation dataset size: 1500
 Actual test dataset size: 1500
 
 Best hyperparameters:
-learning_rate : 9.846858630385391e-06
+learning_rate : 9.964058778098702e-06
