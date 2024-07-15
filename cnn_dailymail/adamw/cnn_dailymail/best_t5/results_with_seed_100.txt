@@ -1,0 +1,36 @@
+Seed: 100
+Model: google-t5/t5-small
+Dataset: cnn_dailymail
+Optimizer: adamw
+Training range: 15000
+Test range: 1500
+Validation range: 1500
+Actual train dataset size: 15000
+Actual validation dataset size: 1500
+Actual test dataset size: 1500
+Learning rate: 9.780213546844915e-06
+
+Best checkpoint:
+adamw/cnn_dailymail/best_t5/checkpoint-14000
+
+Test results:
+test_loss: 0.4338853657245636
+test_rouge1_fmeasure: 0.24824018776416779
+test_rouge1_precision: 0.6084426641464233
+test_rouge1_recall: 0.1609504073858261
+test_rouge2_fmeasure: 0.11886382102966309
+test_rouge2_precision: 0.31138157844543457
+test_rouge2_recall: 0.07577336579561234
+test_rougeL_fmeasure: 0.2038549780845642
+test_rougeL_precision: 0.5019002556800842
+test_rougeL_recall: 0.13203281164169312
+test_rougeLsum_fmeasure: 0.23268257081508636
+test_rougeLsum_precision: 0.5722317099571228
+test_rougeLsum_recall: 0.15071168541908264
+test_precision: nan
+test_recall: 0.947134792804718
+test_f1: 0.9543171525001526
+test_runtime: 198.1706
+test_samples_per_second: 7.569
+test_steps_per_second: 1.892
+epoch: 4.0
