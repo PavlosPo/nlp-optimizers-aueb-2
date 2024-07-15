@@ -22,10 +22,12 @@ os.environ["WANDB_MODE"] = "online"
 parser = argparse.ArgumentParser()
 parser.add_argument("--gpu", type=int, required=False, help="GPU ID to use for training")
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
+parser.add_argument("--optim", type=str, required=True, help="Optimizer string for training")
+parser.add_argument("--learning_rate", type=float, required=True, help="Learning rate for training")
 args = parser.parse_args()
 
 # Parameters for the rest of the script
-optimizer_name = "adamw"
+optimizer_name = args.optim
 model_name = "google-t5/t5-small"
 dataset = "cnn_dailymail"
 seed_num = args.seed
@@ -33,6 +35,8 @@ max_length = 512
 # if gpu was given then set device
 if args.gpu:
     device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
+else:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb_run_name = f"{optimizer_name}-{dataset}-{model_name.split('-')[1].split('/')[0]}_{seed_num}"
 output_dir = f"{optimizer_name}/{dataset}/best_{model_name.split('-')[1].split('/')[0]}"
 # hyper_param_output_name = "hyperparameter_lr_only"  # Where/How to save the hyperparameters
@@ -43,7 +47,7 @@ epochs = 4
 eval_steps = 1000
 logging_steps = 1000
 # n_trials = 30
-learning_rate = 9.9879589111261e-06
+learning_rate = args.learning_rate
 
 # Function to load the tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -59,7 +63,7 @@ def load_datasets(seed_num):
 
 # Load evaluation metrics
 rouge = ROUGEScore(use_stemmer=True)
-bert_score = BERTScore()
+bert_score = BERTScore(device=device)
 
 def clear_cuda_memory():
     gc.collect()
