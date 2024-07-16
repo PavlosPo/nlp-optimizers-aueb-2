@@ -24,6 +24,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
 parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
+parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
 args = parser.parse_args()
 
 # Parameters
@@ -38,7 +39,7 @@ test_range = 1500
 val_range = 1500
 epochs = 4
 learning_rate = 9.9879589111261e-06
-batch_size = 64
+batch_size = args.batch_size
 
 class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", train_loader=None, val_loader=None, test_loader=None):
