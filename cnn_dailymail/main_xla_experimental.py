@@ -191,7 +191,7 @@ def main():
 
 if __name__ == "__main__":
     import os
-    os.environ['PJRT_DEVICE'] = 'TPU'  # Ensure this is set
+    # os.environ['PJRT_DEVICE'] = 'TPU'  # Ensure this is set
     os.environ['TPU_NUM_DEVICES'] = '4'
     try:
         xm.mark_step()  # Initialize TPU
