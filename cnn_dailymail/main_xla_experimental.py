@@ -199,7 +199,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"An error occurred: {e}")
     
-def _mp_fn():
+def _mp_fn(index):
     # For xla_spawn (TPUs)
     print("Running with TPU")
     main()
