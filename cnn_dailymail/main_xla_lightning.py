@@ -194,8 +194,9 @@ if __name__ == "__main__":
     # os.environ['PJRT_DEVICE'] = 'TPU'  # Ensure this is set
     # os.environ['TPU_NUM_DEVICES'] = '4'
     try:
-        xm.mark_step()  # Initialize TPU
-        xmp.spawn(main, nprocs=1, start_method='fork')  # Try reducing nprocs
+        # xm.mark_step()  # Initialize TPU
+        # xmp.spawn(main, nprocs=1, start_method='fork')  # Try reducing nprocs
+        main()
     except Exception as e:
         print(f"An error occurred: {e}")
     
