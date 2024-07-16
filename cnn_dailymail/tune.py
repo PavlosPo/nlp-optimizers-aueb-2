@@ -66,8 +66,8 @@ def clear_cuda_memory():
 prefix = "summarize: "  # Required so the T5 model knows that we are going to summarize
 def preprocess_function(examples):
     inputs = [prefix + doc for doc in examples["article"]]
-    model_inputs = tokenizer(inputs, padding=True, truncation=True, max_length=max_length)
-    labels = tokenizer(text_target=examples["highlights"], padding=True, truncation=True, max_length=max_length)
+    model_inputs = tokenizer(inputs, padding=True, max_length=max_length)
+    labels = tokenizer(text_target=examples["highlights"], padding=True, max_length=max_length)
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
@@ -108,10 +108,11 @@ def compute_metrics(eval_pred):
     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
     result_rouge = rouge_score(preds=decoded_preds, target=decoded_labels)
-    result_brt = bert_score(preds=decoded_preds, target=decoded_labels)
-    result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
-    results = {**result_rouge, **result_brt_average_values}
-    return results
+    # result_brt = bert_score(preds=decoded_preds, target=decoded_labels)
+    # result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
+    # results = {**result_rouge, **result_brt_average_values}
+    
+    return {**result_rouge}
 
 def get_optimizer(optimizer_name, model, learning_rate):
     if optimizer_name == "adamw":
@@ -121,7 +122,8 @@ def get_optimizer(optimizer_name, model, learning_rate):
     elif optimizer_name == "adam":
         return torch.optim.Adam(model.parameters(), lr=learning_rate)
     elif optimizer_name == "sgdm":
-        return torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9) # Default 0.9 momentum
+        DEFAULT_MOMENTUM = 0.9
+        return torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=DEFAULT_MOMENTUM) # Default 0.9 momentum
     else:
         raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 

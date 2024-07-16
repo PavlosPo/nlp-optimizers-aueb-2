@@ -72,8 +72,8 @@ def clear_cuda_memory():
 prefix = "summarize: "  # Required so the T5 model knows that we are going to summarize
 def preprocess_function(examples):
     inputs = [prefix + doc for doc in examples["article"]]
-    model_inputs = tokenizer(inputs, padding=True, truncation=True, max_length=max_length)
-    labels = tokenizer(text_target=examples["highlights"], padding=True, truncation=True, max_length=max_length)
+    model_inputs = tokenizer(inputs, padding=True, max_length=max_length)
+    labels = tokenizer(text_target=examples["highlights"], padding=True, max_length=max_length)
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
