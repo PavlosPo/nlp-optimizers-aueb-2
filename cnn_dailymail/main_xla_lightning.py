@@ -10,7 +10,7 @@ from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
 import os
 import argparse
-from ic import ic
+from icecream import ic
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
