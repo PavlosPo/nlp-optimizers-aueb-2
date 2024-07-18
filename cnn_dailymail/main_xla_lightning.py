@@ -1,6 +1,6 @@
 import torch
 import pytorch_lightning as pl
-import lightning as L
+# import lightning as L
 import torch.utils.data as data
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -84,7 +84,7 @@ class T5SummarizationModule(pl.LightningModule):
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
         
-class T5SummarizationDataModule(L.LightningDataModule):
+class T5SummarizationDataModule(pl.LightningDataModule):
     
     def __init__(self, model_name, dataset_name, max_length, batch_size, train_range, val_range, test_range, seed_num):
         super().__init__()
