@@ -1,6 +1,6 @@
 import torch
-import pytorch_lightning as pl
-import lightning as L
+# import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch.utils.data as data
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -34,14 +34,17 @@ epochs = 4
 learning_rate = 9.9879589111261e-06
 batch_size = args.batch_size
 
-class T5SummarizationModule(L.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw"):
+class T5SummarizationModule(pl.LightningModule):
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw", train_loader=None, val_loader=None, test_loader=None):        
         super().__init__()
         self.save_hyperparameters()
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.test_loader = test_loader
         self.rouge_score = ROUGEScore(use_stemmer=True)
         self.bert_score = BERTScore(model_name_or_path='roberta-large')
         self.valid_predictions = []
@@ -52,25 +55,28 @@ class T5SummarizationModule(L.LightningModule):
     def forward(self, input_ids, attention_mask, labels=None):
         return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
 
-    def training_step(self, batch):
-        output = self(
-            input_ids=batch["input_ids"],
-            attention_mask=batch["attention_mask"],
-            labels=batch["labels"],
-        )
-        self.log("train_loss", output.loss)
-        return output.loss
+    def training_step(self, batch, batch_idx):
+        outputs = self(**batch)
+        loss = outputs.loss
+        # Move loss to CPU before logging
+        loss_cpu = loss.detach().cpu()
+        self.log("train_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss  # Always return the loss
 
     def validation_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs.loss
-        self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        # Move loss to CPU before logging
+        loss_cpu = loss.detach().cpu()
+        self.log("val_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
     def test_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs.loss
-        self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        # Move loss to CPU before logging
+        loss_cpu = loss.detach().cpu()
+        self.log("test_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
     
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
@@ -90,7 +96,7 @@ class T5SummarizationModule(L.LightningModule):
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
         
-class T5SummarizationDataModule(L.LightningDataModule):
+class T5SummarizationDataModule(pl.LightningDataModule):
     def __init__(self, model_name, dataset_name, max_length, batch_size, train_range, val_range, test_range, seed_num):
         super().__init__()
         self.model_name = model_name
