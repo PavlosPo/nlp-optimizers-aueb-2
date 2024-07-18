@@ -277,7 +277,7 @@ def main():
         max_epochs=epochs,
         logger=logger,
         callbacks=[checkpoint_callback],
-        log_every_n_steps=1000,
+        log_every_n_steps=100,
         enable_checkpointing=True,
         accelerator='auto',
         devices='auto',
