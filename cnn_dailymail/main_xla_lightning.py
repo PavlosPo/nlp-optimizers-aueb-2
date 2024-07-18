@@ -54,10 +54,11 @@ class T5SummarizationModule(pl.LightningModule):
         self.test_labels = []
 
     def forward(self, input_ids, attention_mask, labels=None):
-        return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        return outputs
 
     def training_step(self, batch, batch_idx):
-        outputs = self.forward(input_ids=batch["input_ids"],
+        outputs = self(input_ids=batch["input_ids"],
                              attention_mask=batch["attention_mask"],
                              labels=batch["labels"])
         loss = outputs['loss'].item()
@@ -70,7 +71,7 @@ class T5SummarizationModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         with torch.no_grad():
-            outputs = self.forward(input_ids=batch["input_ids"],
+            outputs = self(input_ids=batch["input_ids"],
                                 attention_mask=batch["attention_mask"],
                                 labels=batch["labels"])
             loss = outputs['loss'].item()
@@ -95,7 +96,7 @@ class T5SummarizationModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
-            outputs = self.forward(input_ids=batch["input_ids"],
+            outputs = self(input_ids=batch["input_ids"],
                                 attention_mask=batch["attention_mask"],
                                 labels=batch["labels"])
             loss = outputs['loss'].item()
