@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 import torch.utils.data as data
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
-from transformers import AutoTokenizer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM
+from transformers import T5ForConditionalGeneration, T5Tokenizer, DataCollatorForSeq2Seq
 from datasets import load_dataset
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
@@ -38,7 +38,7 @@ class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw"):
         super().__init__()
         self.save_hyperparameters()
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        self.model = T5ForConditionalGeneration.from_pretrained("t5-small").train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
@@ -52,11 +52,14 @@ class T5SummarizationModule(pl.LightningModule):
     def forward(self, input_ids, attention_mask, labels=None):
         return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
 
-    def training_step(self, batch, batch_idx):
-        outputs = self(**batch)
-        loss = outputs.loss
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return loss  # Always return the loss
+    def training_step(self, batch):
+        output = self.model(
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            labels=batch["labels"],
+        )
+        self.log("train_loss", output.loss)
+        return output.loss
 
     def validation_step(self, batch, batch_idx):
         outputs = self(**batch)
@@ -105,12 +108,12 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         # download, IO, etc. Useful with shared filesystems
         # only called on 1 GPU/TPU in distributed
         load_dataset(self.dataset_name, '3.0.0')
-        AutoTokenizer.from_pretrained(self.model_name)
+        # AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage):
         # make assignments here (val/train/test split)
         # called on every process in DDP
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = T5Tokenizer.from_pretrained(self.model_name, legacy=True)
         self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
 
         # Load and preprocess the dataset
@@ -251,9 +254,9 @@ def main():
         f.write(f'Training range: {train_range}\n')
         f.write(f'Test range: {test_range}\n')
         f.write(f'Validation range: {val_range}\n')
-        f.write(f'Actual train dataset size: {len(train_dataset)}\n')
-        f.write(f'Actual validation dataset size: {len(val_dataset)}\n')
-        f.write(f'Actual test dataset size: {len(test_dataset)}\n')
+        # f.write(f'Actual train dataset size: {len(train_dataset)}\n')
+        # f.write(f'Actual validation dataset size: {len(val_dataset)}\n')
+        # f.write(f'Actual test dataset size: {len(test_dataset)}\n')
         f.write(f'Learning rate: {learning_rate}\n')
         f.write("\nBest checkpoint:\n")
         f.write(f"{checkpoint_callback.best_model_path}\n")
