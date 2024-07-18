@@ -49,10 +49,11 @@ class T5SummarizationModule(pl.LightningModule):
         self.test_loader = test_loader
         self.rouge_score = ROUGEScore(use_stemmer=True)
         self.bert_score = BERTScore(model_name_or_path='roberta-large')
-        self.valid_predictions = []
-        self.valid_labels = []
-        self.test_predictions = []
-        self.test_labels = []
+        self.training_step_outputs = []
+        self.valid_step_predictions = []
+        self.valid_step_labels = []
+        self.test_step_predictions = []
+        self.test_step_labels = []
 
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -63,6 +64,7 @@ class T5SummarizationModule(pl.LightningModule):
                              attention_mask=batch["attention_mask"],
                              labels=batch["labels"])
         loss = outputs['loss']
+        # self.training_step_outputs.append(preds)
         self.log("train_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss # Always return the loss
 
@@ -75,26 +77,41 @@ class T5SummarizationModule(pl.LightningModule):
                                 attention_mask=batch["attention_mask"],
                                 labels=batch["labels"])
             loss = outputs['loss']
-            ic(loss)
+            self.valid_step_predictions.append(outputs['logits'])
+            self.valid_step_labels.append(batch["labels"])
             self.log("val_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
             return loss
         
     def on_validation_epoch_end(self):
         # Compute metrics and log them
+        all_preds = torch.stack(self.valid_step_predictions)
+        all_labels = torch.stack(self.valid_step_labels)
         with torch.no_grad():
-            results = self._compute_metrics(self.valid_predictions, self.valid_labels)
+            results = self._compute_metrics(preds=all_preds, labels=all_labels)
             self.log_dict("val_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
-
-    def on_test_epoch_end(self):
-        # Compute metrics and log them
+        self.training_step_outputs.clear()
+        
+    def test_step(self, batch, batch_idx):
         with torch.no_grad():
-            results = self._compute_metrics(self.test_predictions, self.test_labels)
+            outputs = self(input_ids=batch["input_ids"],
+                                attention_mask=batch["attention_mask"],
+                                labels=batch["labels"])
+            loss = outputs['loss']
+            self.test_step_predictions.append(outputs['logits'])
+            self.test_step_labels.append(batch["labels"])
+            self.log("test_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            return loss
+
+    def on_test_epoch_end(self, ):
+        # Compute metrics and log them
+        all_preds = torch.stack(self.test_step_predictions)
+        all_labels = torch.stack(self.test_step_labels)
+        with torch.no_grad():
+            results = self._compute_metrics(preds=all_preds, labels=all_labels)
             self.log_dict("test_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
             
-    def _compute_metrics(self, batch, batch_idx):
-        labels = batch["labels"]
-        predictions = self.generate(batch, batch_idx)
-        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
+    def _compute_metrics(self, preds, labels):
+        decoded_preds = self.tokenizer.batch_decode(preds, skip_special_tokens=True)
         labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
         decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
@@ -102,28 +119,7 @@ class T5SummarizationModule(pl.LightningModule):
         result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
         results = {**result_rouge, **result_brt_average_values}
         return results
-
-    def test_step(self, batch, batch_idx):
-        with torch.no_grad():
-            outputs = self(input_ids=batch["input_ids"],
-                                attention_mask=batch["attention_mask"],
-                                labels=batch["labels"])
-            loss = outputs['loss']
-            ic(loss)
-            self.log("test_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-            return loss
     
-    def on_validation_batch_end(self, outputs, batch, batch_idx):
-        pass
-
-    def on_test_epoch_end(self):
-        pass
-    
-    # def predict_step(self, batch, batch_idx, dataloader_idx=0):
-    #     return self.model.generate(input_ids=batch["input_ids"],
-    #                                attention_mask=batch["attention_mask"],
-    #                                max_length=512)
-
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
         return optimizer
@@ -158,8 +154,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         # download, IO, etc. Useful with shared filesystems
         # only called on 1 GPU/TPU in distributed
         load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
-        # self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        # self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
+        AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage):
         # make assignments here (val/train/test split)
@@ -220,47 +215,11 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         elif stage == 'test':
             self.test_dataset = None
         
-
-# def preprocess_function(examples, tokenizer, max_length):
-#     prefix = "summarize: "
-#     inputs = [prefix + doc for doc in examples["article"]]
-#     model_inputs = tokenizer(inputs, padding="max_length", truncation=True, max_length=max_length)
-#     labels = tokenizer(text_target=examples["highlights"], padding="max_length", truncation=True, max_length=max_length)
-#     model_inputs["labels"] = labels["input_ids"]
-#     return model_inputs
-
-# def load_and_prepare_data(tokenizer, max_length):
-#     dataset = load_dataset(dataset_name, '3.0.0').shuffle(seed=seed_num)
-#     train = dataset['train'].select(range(min(train_range, len(dataset['train']))))
-#     temp = dataset['test'].train_test_split(test_size=0.5, seed=seed_num, shuffle=True)
-#     test = temp['test'].select(range(min(test_range, len(temp['test']))))
-#     val = temp['train'].select(range(min(val_range, len(temp['train']))))
-
-#     train_dataset = train.map(
-#         lambda x: preprocess_function(x, tokenizer, max_length),
-#         batched=True,
-#         remove_columns=train.column_names
-#     )
-#     val_dataset = val.map(
-#         lambda x: preprocess_function(x, tokenizer, max_length),
-#         batched=True,
-#         remove_columns=val.column_names
-#     )
-#     test_dataset = test.map(
-#         lambda x: preprocess_function(x, tokenizer, max_length),
-#         batched=True,
-#         remove_columns=test.column_names
-#     )
-
-#     return train_dataset, val_dataset, test_dataset
-
 def main():
     pl.seed_everything(seed_num)
     
     
-    model = T5SummarizationModule(model_name=model_name, 
-                                  learning_rate=learning_rate, 
-                                  optimizer_name=optimizer_name,)
+    model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, optimizer_name=optimizer_name)
     
     data_module = T5SummarizationDataModule(
         model_name=model_name,
@@ -308,9 +267,6 @@ def main():
         f.write(f'Training range: {train_range}\n')
         f.write(f'Test range: {test_range}\n')
         f.write(f'Validation range: {val_range}\n')
-        # f.write(f'Actual train dataset size: {len(train_dataset)}\n')
-        # f.write(f'Actual validation dataset size: {len(val_dataset)}\n')
-        # f.write(f'Actual test dataset size: {len(test_dataset)}\n')
         f.write(f'Learning rate: {learning_rate}\n')
         f.write("\nBest checkpoint:\n")
         f.write(f"{checkpoint_callback.best_model_path}\n")
