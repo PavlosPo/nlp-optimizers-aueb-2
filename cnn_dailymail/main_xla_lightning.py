@@ -204,14 +204,6 @@ def main():
     pl.seed_everything(seed_num)
     
     model = T5SummarizationModule(model_name, learning_rate, optimizer_name)
-    # tokenizer = model.tokenizer
-    
-    # train_dataset, val_dataset, test_dataset = load_and_prepare_data(tokenizer, max_length)
-    # data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
-
-    # train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True)
-    # val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator)
-    # test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator)
     
     data_module = T5SummarizationDataModule(
         model_name=model_name,
@@ -225,7 +217,6 @@ def main():
     )
     
     logger = TensorBoardLogger("tb_logs", name="my_model")
-    # logger = WandbLogger(project="cnn_dailymail", name=f"{model_name}_{dataset_name}_{optimizer_name}_{seed_num}")
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
         filename='best-checkpoint',
