@@ -89,8 +89,9 @@ class T5SummarizationModule(pl.LightningModule):
     def on_validation_batch_end(self, outputs, batch, batch_idx):
         self.valid_predictions = []
         self.valid_labels = []
-        ic(outputs.loss)
-        self.valid_predictions.extend(outputs.logits.argmax(dim=-1).detach().cpu().numpy().tolist())
+        ic(outputs)
+        ic(batch)
+        # self.valid_predictions.extend(outputs.logits.argmax(dim=-1).detach().cpu().numpy().tolist())
         
 
     def on_test_epoch_end(self):
