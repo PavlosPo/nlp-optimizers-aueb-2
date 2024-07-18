@@ -138,7 +138,7 @@ def main():
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator, )
     
     # logger = TensorBoardLogger("tb_logs", name="my_model")
     logger = WandbLogger(project="cnn_dailymail", name=f"{model_name}_{dataset_name}_{optimizer_name}_{seed_num}")
@@ -155,8 +155,8 @@ def main():
         max_epochs=epochs,
         logger=logger,
         callbacks=[checkpoint_callback],
-        steps_per_epoch = train_loader.shape[0], # batch_Size,
-        steps_per_val = val_loader.shape[0], # batch_Size,
+        steps_per_epoch = train_dataset.num_rows, # batch_Size,
+        steps_per_val = val_dataset.num_rows, # batch_Size,
         log_every_n_steps=1000,
         # val_check_interval=1,
         enable_checkpointing=True,
