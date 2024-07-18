@@ -36,10 +36,10 @@ learning_rate = 9.9879589111261e-06
 batch_size = args.batch_size
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw", train_loader=None, val_loader=None, test_loader=None):        
+    def __init__(self, model, model_name, learning_rate, optimizer_name="adamw", train_loader=None, val_loader=None, test_loader=None):        
         super().__init__()
         self.save_hyperparameters()
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
+        self.model = model.train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
@@ -241,7 +241,11 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 def main():
     pl.seed_everything(seed_num)
     
-    model = T5SummarizationModule(model_name, learning_rate, optimizer_name)
+    
+    model = T5SummarizationModule(model=AutoModelForSeq2SeqLM.from_pretrained(model_name),
+                                  model_name=model_name, 
+                                  learning_rate=learning_rate, 
+                                  optimizer_name=optimizer_name,)
     
     data_module = T5SummarizationDataModule(
         model_name=model_name,
@@ -273,7 +277,7 @@ def main():
         accelerator='auto',
         devices='auto',
         accumulate_grad_batches=16,
-        precision="bf16-true"
+        precision="fp32"
     )
 
     trainer.fit(model, datamodule=data_module)
