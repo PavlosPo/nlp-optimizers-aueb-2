@@ -24,6 +24,7 @@ parser.add_argument("--gpu", type=int, required=False, help="GPU ID to use for t
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
 parser.add_argument("--optim", type=str, required=True, help="Optimizer string for training")
 parser.add_argument("--learning_rate", type=float, required=True, help="Learning rate for training")
+parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
 args = parser.parse_args()
 
 # Parameters for the rest of the script
@@ -48,6 +49,7 @@ eval_steps = 1000
 logging_steps = 1000
 # n_trials = 30
 learning_rate = args.learning_rate
+batch_size = args.batch_size
 
 # Function to load the tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -86,17 +88,17 @@ def safe_select(dataset, range_end):
 
 def prepare_datasets(train, val, test):
     tokenized_dataset_train = safe_select(
-        train.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
+        train.map(preprocess_function, batched=True, remove_columns=train.column_names).filter(lambda x: len(x['input_ids']) <= max_length),
         train_range
     )
     
     tokenized_dataset_val = safe_select(
-        val.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
+        val.map(preprocess_function, batched=True, remove_columns=val.column_names).filter(lambda x: len(x['input_ids']) <= max_length),
         val_range
     )
     
     tokenized_dataset_test = safe_select(
-        test.map(preprocess_function, batched=True).filter(lambda x: len(x['input_ids']) <= max_length),
+        test.map(preprocess_function, batched=True, remove_columns=test.column_names).filter(lambda x: len(x['input_ids']) <= max_length),
         test_range
     )
     
@@ -148,8 +150,8 @@ def main(seed_num):
         evaluation_strategy="steps",
         logging_steps=logging_steps,
         eval_steps=eval_steps,
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=4,
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=batch_size,
         save_total_limit=1,
         num_train_epochs=epochs,
         predict_with_generate=True,
