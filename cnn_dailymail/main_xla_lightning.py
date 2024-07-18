@@ -57,7 +57,9 @@ class T5SummarizationModule(pl.LightningModule):
         return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
 
     def training_step(self, batch, batch_idx):
-        outputs = self(**batch)
+        outputs = self.model(input_ids=batch["input_ids"], 
+                             attention_mask=batch["attention_mask"], 
+                             labels=batch["labels"])
         loss = outputs.loss
         # ic(outputs)
         # ic(loss)
@@ -67,7 +69,9 @@ class T5SummarizationModule(pl.LightningModule):
         return loss # Always return the loss
 
     def validation_step(self, batch, batch_idx):
-        outputs = self(**batch)
+        outputs = self.model(input_ids=batch["input_ids"],
+                             attention_mask=batch["attention_mask"],
+                             labels=batch["labels"])
         loss = outputs.loss
         # Move loss to CPU before logging
         # loss_cpu = loss.detach().cpu()
@@ -75,7 +79,9 @@ class T5SummarizationModule(pl.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
-        outputs = self(**batch)
+        outputs = self.model(input_ids=batch["input_ids"],
+                             attention_mask=batch["attention_mask"],
+                             labels=batch["labels"])
         loss = outputs.loss
         # Move loss to CPU before logging
         # loss_cpu = loss.detach().cpu()
