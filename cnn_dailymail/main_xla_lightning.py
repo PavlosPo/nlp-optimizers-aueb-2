@@ -8,7 +8,7 @@ try:
     import torch_xla.distributed.xla_multiprocessing as xmp
 except ImportError:
     print("Torch XLA is not installed. Please install via the command line: pip install torch_xla")
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM
 from datasets import load_dataset
@@ -140,7 +140,8 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator)
     
-    logger = TensorBoardLogger("tb_logs", name="my_model")
+    # logger = TensorBoardLogger("tb_logs", name="my_model")
+    logger = WandbLogger(project="cnn_dailymail", name=f"{model_name}_{dataset_name}_{optimizer_name}_{seed_num}")
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
         filename='best-checkpoint',
@@ -154,13 +155,15 @@ def main():
         max_epochs=epochs,
         logger=logger,
         callbacks=[checkpoint_callback],
+        steps_per_epoch = train_loader.shape[0], # batch_Size,
+        steps_per_val = val_loader.shape[0], # batch_Size,
         log_every_n_steps=1000,
         # val_check_interval=1,
         enable_checkpointing=True,
         accelerator='auto',
         devices='auto',
         accumulate_grad_batches=16,
-        precision="bf16-true"
+        # precision="bf16-true"
     )
 
     trainer.fit(model, train_loader, val_loader)
