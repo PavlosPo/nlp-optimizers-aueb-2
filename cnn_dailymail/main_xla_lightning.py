@@ -136,9 +136,9 @@ def main():
     train_dataset, val_dataset, test_dataset = load_and_prepare_data(tokenizer, max_length)
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator, num_workers=0)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator, num_workers=0)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator)
     
     logger = TensorBoardLogger("tb_logs", name="my_model")
     checkpoint_callback = ModelCheckpoint(
