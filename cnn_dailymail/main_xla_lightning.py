@@ -277,7 +277,7 @@ def main():
         accelerator='auto',
         devices='auto',
         accumulate_grad_batches=16,
-        precision="fp32"
+        precision="32-true"
     )
 
     trainer.fit(model, datamodule=data_module)
