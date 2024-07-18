@@ -61,9 +61,8 @@ class T5SummarizationModule(pl.LightningModule):
         outputs = self(input_ids=batch["input_ids"],
                              attention_mask=batch["attention_mask"],
                              labels=batch["labels"])
-        loss = outputs['loss'].item()
-        ic(loss)
-        self.log("train_loss", loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+        loss = outputs['loss']
+        self.log("train_loss", loss.item(), on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         return loss # Always return the loss
 
     def on_train_epoch_end(self):
@@ -74,9 +73,9 @@ class T5SummarizationModule(pl.LightningModule):
             outputs = self(input_ids=batch["input_ids"],
                                 attention_mask=batch["attention_mask"],
                                 labels=batch["labels"])
-            loss = outputs['loss'].item()
+            loss = outputs['loss']
             ic(loss)
-            self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            self.log("val_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
             return loss
     
     # def _compute_metrics(self, batch, batch_idx):
@@ -99,9 +98,9 @@ class T5SummarizationModule(pl.LightningModule):
             outputs = self(input_ids=batch["input_ids"],
                                 attention_mask=batch["attention_mask"],
                                 labels=batch["labels"])
-            loss = outputs['loss'].item()
+            loss = outputs['loss']
             ic(loss)
-            self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            self.log("test_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
             return loss
     
     def on_validation_batch_end(self, outputs, batch, batch_idx):
