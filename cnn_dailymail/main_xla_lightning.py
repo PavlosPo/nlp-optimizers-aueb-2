@@ -1,10 +1,10 @@
 import torch
 import pytorch_lightning as pl
-# import lightning as L
+import lightning as L
 import torch.utils.data as data
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
-from transformers import T5ForConditionalGeneration, T5Tokenizer, DataCollatorForSeq2Seq
+from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
 from datasets import load_dataset
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
@@ -34,11 +34,11 @@ epochs = 4
 learning_rate = 9.9879589111261e-06
 batch_size = args.batch_size
 
-class T5SummarizationModule(pl.LightningModule):
+class T5SummarizationModule(L.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw"):
         super().__init__()
         self.save_hyperparameters()
-        self.model = T5ForConditionalGeneration.from_pretrained("t5-small").train()
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
@@ -72,6 +72,9 @@ class T5SummarizationModule(pl.LightningModule):
         loss = outputs.loss
         self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
+    
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        return self(**batch)
 
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
@@ -87,8 +90,7 @@ class T5SummarizationModule(pl.LightningModule):
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
         
-class T5SummarizationDataModule(pl.LightningDataModule):
-    
+class T5SummarizationDataModule(L.LightningDataModule):
     def __init__(self, model_name, dataset_name, max_length, batch_size, train_range, val_range, test_range, seed_num):
         super().__init__()
         self.model_name = model_name
@@ -108,12 +110,12 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         # download, IO, etc. Useful with shared filesystems
         # only called on 1 GPU/TPU in distributed
         load_dataset(self.dataset_name, '3.0.0')
-        # AutoTokenizer.from_pretrained(self.model_name)
+        AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage):
         # make assignments here (val/train/test split)
         # called on every process in DDP
-        self.tokenizer = T5Tokenizer.from_pretrained(self.model_name, legacy=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
 
         # Load and preprocess the dataset
