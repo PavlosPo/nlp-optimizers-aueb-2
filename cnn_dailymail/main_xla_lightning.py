@@ -86,7 +86,7 @@ class T5SummarizationModule(pl.LightningModule):
         self.valid_predictions = []
         self.valid_labels = []
         
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+    def on_validation_batch_end(self, outputs, batch, batch_idx):
         self.valid_predictions = []
         self.valid_labels = []
         ic(outputs.loss)
