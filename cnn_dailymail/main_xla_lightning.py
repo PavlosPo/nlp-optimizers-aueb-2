@@ -82,6 +82,23 @@ class T5SummarizationModule(pl.LightningModule):
         # self.log("test_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
     
+    def on_train_epoch_end(self):
+        self.valid_predictions = []
+        self.valid_labels = []
+        
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+        self.valid_predictions = []
+        self.valid_labels = []
+        ic(outputs.loss)
+        self.valid_predictions.extend(outputs.logits.argmax(dim=-1).detach().cpu().numpy().tolist())
+        
+
+    def on_test_epoch_end(self):
+        self.test_predictions = []
+        self.test_labels = []
+        
+        
+    
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         return self(**batch)
 
