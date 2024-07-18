@@ -159,8 +159,8 @@ def main():
         enable_checkpointing=True,
         accelerator='auto',
         devices='auto',
-        # accumulate_grad_batches=8,
-        # precision="bf16-true"
+        accumulate_grad_batches=16,
+        precision="bf16-true"
     )
 
     trainer.fit(model, train_loader, val_loader)
