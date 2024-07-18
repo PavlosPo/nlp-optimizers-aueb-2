@@ -140,8 +140,8 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator, )
     
-    # logger = TensorBoardLogger("tb_logs", name="my_model")
-    logger = WandbLogger(project="cnn_dailymail", name=f"{model_name}_{dataset_name}_{optimizer_name}_{seed_num}")
+    logger = TensorBoardLogger("tb_logs", name="my_model")
+    # logger = WandbLogger(project="cnn_dailymail", name=f"{model_name}_{dataset_name}_{optimizer_name}_{seed_num}")
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
         filename='best-checkpoint',
