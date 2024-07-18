@@ -1,14 +1,8 @@
 import torch
 import pytorch_lightning as pl
-
-try:
-    import torch_xla.core.xla_model as xm
-    import torch_xla.distributed.parallel_loader as pl_xla
-    import torch_xla.debug.metrics as met
-    import torch_xla.distributed.xla_multiprocessing as xmp
-except ImportError:
-    print("Torch XLA is not installed. Please install via the command line: pip install torch_xla")
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+import lightning as L
+import torch.utils.data as data
+from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM
 from datasets import load_dataset
@@ -17,7 +11,6 @@ from torchmetrics.text.bert import BERTScore
 import os
 import argparse
 from torch.utils.data import DataLoader
-from icecream import ic
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
@@ -42,16 +35,13 @@ learning_rate = 9.9879589111261e-06
 batch_size = args.batch_size
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw", train_loader=None, val_loader=None, test_loader=None):
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw"):
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
-        self.train_loader = train_loader
-        self.val_loader = val_loader
-        self.test_loader = test_loader
         self.rouge_score = ROUGEScore(use_stemmer=True)
         self.bert_score = BERTScore(model_name_or_path='roberta-large')
         self.valid_predictions = []
@@ -93,52 +83,146 @@ class T5SummarizationModule(pl.LightningModule):
             return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
+        
+class T5SummarizationDataModule(L.LightningDataModule):
+    
+    def __init__(self, model_name, dataset_name, max_length, batch_size, train_range, val_range, test_range, seed_num):
+        super().__init__()
+        self.model_name = model_name
+        self.dataset_name = dataset_name
+        self.max_length = max_length
+        self.batch_size = batch_size
+        self.train_range = train_range
+        self.val_range = val_range
+        self.test_range = test_range
+        self.seed_num = seed_num
+        self.tokenizer = None
+        self.data_collator = None
+        self.train_dataset = None
+        self.val_dataset = None
+        self.test_dataset = None
+    def prepare_data(self):
+        # download, IO, etc. Useful with shared filesystems
+        # only called on 1 GPU/TPU in distributed
+        load_dataset(self.dataset_name, '3.0.0')
+        AutoTokenizer.from_pretrained(self.model_name)
 
-def preprocess_function(examples, tokenizer, max_length):
-    prefix = "summarize: "
-    inputs = [prefix + doc for doc in examples["article"]]
-    model_inputs = tokenizer(inputs, padding="max_length", truncation=True, max_length=max_length)
-    labels = tokenizer(text_target=examples["highlights"], padding="max_length", truncation=True, max_length=max_length)
-    model_inputs["labels"] = labels["input_ids"]
-    return model_inputs
+    def setup(self, stage):
+        # make assignments here (val/train/test split)
+        # called on every process in DDP
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
 
-def load_and_prepare_data(tokenizer, max_length):
-    dataset = load_dataset(dataset_name, '3.0.0').shuffle(seed=seed_num)
-    train = dataset['train'].select(range(min(train_range, len(dataset['train']))))
-    temp = dataset['test'].train_test_split(test_size=0.5, seed=seed_num, shuffle=True)
-    test = temp['test'].select(range(min(test_range, len(temp['test']))))
-    val = temp['train'].select(range(min(val_range, len(temp['train']))))
+        # Load and preprocess the dataset
+        dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
+        
+        if stage == 'fit' or stage is None:
+            train = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
+            self.train_dataset = self._preprocess_dataset(train)
 
-    train_dataset = train.map(
-        lambda x: preprocess_function(x, tokenizer, max_length),
-        batched=True,
-        remove_columns=train.column_names
-    )
-    val_dataset = val.map(
-        lambda x: preprocess_function(x, tokenizer, max_length),
-        batched=True,
-        remove_columns=val.column_names
-    )
-    test_dataset = test.map(
-        lambda x: preprocess_function(x, tokenizer, max_length),
-        batched=True,
-        remove_columns=test.column_names
-    )
+            temp = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
+            val = temp['train'].select(range(min(self.val_range, len(temp['train']))))
+            self.val_dataset = self._preprocess_dataset(val)
 
-    return train_dataset, val_dataset, test_dataset
+        if stage == 'test' or stage is None:
+            temp = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
+            test = temp['test'].select(range(min(self.test_range, len(temp['test']))))
+            self.test_dataset = self._preprocess_dataset(test)
+    
+    def _preprocess_dataset(self, dataset):
+        return dataset.map(
+            lambda x: self._preprocess_function(x),
+            batched=True,
+            remove_columns=dataset.column_names
+        )
+        
+    def _preprocess_function(self, examples):
+        prefix = "summarize: "
+        inputs = [prefix + doc for doc in examples["article"]]
+        model_inputs = self.tokenizer(inputs, padding="max_length", truncation=True, max_length=self.max_length)
+        labels = self.tokenizer(text_target=examples["highlights"], padding="max_length", truncation=True, max_length=self.max_length)
+        model_inputs["labels"] = labels["input_ids"]
+        return model_inputs
+
+    def train_dataloader(self):
+        return data.DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True)
+
+    def val_dataloader(self):
+        return data.DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.data_collator)
+
+    def test_dataloader(self):
+        return data.DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator)
+
+    def on_exception(self, exception):
+        # clean up state after the trainer faced an exception\
+            pass
+        
+    def teardown(self, stage: str):
+        # clean up state after the trainer stops, delete files...
+        # called on every process in DDP
+        if stage == 'fit':
+            self.train_dataset = None
+            self.val_dataset = None
+        elif stage == 'test':
+            self.test_dataset = None
+        
+
+# def preprocess_function(examples, tokenizer, max_length):
+#     prefix = "summarize: "
+#     inputs = [prefix + doc for doc in examples["article"]]
+#     model_inputs = tokenizer(inputs, padding="max_length", truncation=True, max_length=max_length)
+#     labels = tokenizer(text_target=examples["highlights"], padding="max_length", truncation=True, max_length=max_length)
+#     model_inputs["labels"] = labels["input_ids"]
+#     return model_inputs
+
+# def load_and_prepare_data(tokenizer, max_length):
+#     dataset = load_dataset(dataset_name, '3.0.0').shuffle(seed=seed_num)
+#     train = dataset['train'].select(range(min(train_range, len(dataset['train']))))
+#     temp = dataset['test'].train_test_split(test_size=0.5, seed=seed_num, shuffle=True)
+#     test = temp['test'].select(range(min(test_range, len(temp['test']))))
+#     val = temp['train'].select(range(min(val_range, len(temp['train']))))
+
+#     train_dataset = train.map(
+#         lambda x: preprocess_function(x, tokenizer, max_length),
+#         batched=True,
+#         remove_columns=train.column_names
+#     )
+#     val_dataset = val.map(
+#         lambda x: preprocess_function(x, tokenizer, max_length),
+#         batched=True,
+#         remove_columns=val.column_names
+#     )
+#     test_dataset = test.map(
+#         lambda x: preprocess_function(x, tokenizer, max_length),
+#         batched=True,
+#         remove_columns=test.column_names
+#     )
+
+#     return train_dataset, val_dataset, test_dataset
 
 def main():
     pl.seed_everything(seed_num)
     
     model = T5SummarizationModule(model_name, learning_rate, optimizer_name)
-    tokenizer = model.tokenizer
+    # tokenizer = model.tokenizer
     
-    train_dataset, val_dataset, test_dataset = load_and_prepare_data(tokenizer, max_length)
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
+    # train_dataset, val_dataset, test_dataset = load_and_prepare_data(tokenizer, max_length)
+    # data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model_name)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator, )
+    # train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True)
+    # val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator)
+    # test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator)
+    
+    data_module = T5SummarizationDataModule(
+        model_name=model_name,
+        dataset_name=dataset_name,
+        max_length=max_length,
+        batch_size=batch_size,
+        train_range=train_range,
+        val_range=val_range,
+        test_range=test_range,
+        seed_num=seed_num
+    )
     
     logger = TensorBoardLogger("tb_logs", name="my_model")
     # logger = WandbLogger(project="cnn_dailymail", name=f"{model_name}_{dataset_name}_{optimizer_name}_{seed_num}")
@@ -156,16 +240,15 @@ def main():
         logger=logger,
         callbacks=[checkpoint_callback],
         log_every_n_steps=1000,
-        # val_check_interval=1,
         enable_checkpointing=True,
         accelerator='auto',
         devices='auto',
         accumulate_grad_batches=16,
-        # precision="bf16-true"
+        precision="bf16-true"
     )
 
-    trainer.fit(model, train_loader, val_loader)
-    test_results = trainer.test(model, test_loader)
+    trainer.fit(model, datamodule=data_module)
+    test_results = trainer.test(model, datamodule=data_module)
     
     os.makedirs(output_dir, exist_ok=True)
 
