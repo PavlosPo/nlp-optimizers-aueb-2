@@ -1,0 +1,6 @@
+learning_rate: 9.9879589111261e-06
+model_name: google-t5/t5-small
+optimizer_name: adam
+test_loader: null
+train_loader: null
+val_loader: null
