@@ -57,54 +57,53 @@ class T5SummarizationModule(pl.LightningModule):
         return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
 
     def training_step(self, batch, batch_idx):
-        outputs = self.model(input_ids=batch["input_ids"], 
+        loss = self.forward(input_ids=batch["input_ids"], 
                              attention_mask=batch["attention_mask"], 
-                             labels=batch["labels"])
-        ic(outputs)
-        # ic(loss)
+                             labels=batch["labels"]).item()
+        
         # Move loss to CPU before logging
         # loss_cpu = loss.detach().cpu()
-        self.log("train_loss", outputs.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return outputs.item() # Always return the loss
+        self.log("train_loss", loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+        return loss # Always return the loss
+
+    def on_train_epoch_end(self):
+        pass
 
     def validation_step(self, batch, batch_idx):
-        outputs = self.model(input_ids=batch["input_ids"],
+        loss = self.model(input_ids=batch["input_ids"],
                              attention_mask=batch["attention_mask"],
-                             labels=batch["labels"])
-        loss = outputs.loss
+                             labels=batch["labels"]).item()
         # Move loss to CPU before logging
-        # loss_cpu = loss.detach().cpu()
-        # self.log("val_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return loss
-
-    def test_step(self, batch, batch_idx):
-        outputs = self.model(input_ids=batch["input_ids"],
-                             attention_mask=batch["attention_mask"],
-                             labels=batch["labels"])
-        loss = outputs.loss
-        # Move loss to CPU before logging
-        # loss_cpu = loss.detach().cpu()
-        # self.log("test_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
     
-    def on_train_epoch_end(self):
-        self.valid_predictions = []
-        self.valid_labels = []
+    
+    
+    def _compute_metrics(self, batch, batch_idx):
+        generations = self.predict_step(batch, batch_idx)
+        return {**self.rouge_score(generations, batch["labels"]), **self.bert_score(generations, batch["labels"])}
+    
         
+    def test_step(self, batch, batch_idx):
+        loss = self.model(input_ids=batch["input_ids"],
+                             attention_mask=batch["attention_mask"],
+                             labels=batch["labels"]).item()
+        # Move loss to CPU before logging
+        # loss_cpu = loss.detach().cpu()
+        self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss
+    
     def on_validation_batch_end(self, outputs, batch, batch_idx):
-        self.valid_predictions = []
-        self.valid_labels = []
-        ic(outputs)
-        ic(batch)
-        # self.valid_predictions.extend(outputs.logits.argmax(dim=-1).detach().cpu().numpy().tolist())
+        pass
         
 
     def on_test_epoch_end(self):
-        self.test_predictions = []
-        self.test_labels = []
+        pass
     
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        return self(**batch)
+        return self.model.generate(input_ids=batch["input_ids"],
+                                   attention_mask=batch["attention_mask"],
+                                   max_length=512)
 
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
