@@ -11,6 +11,7 @@ from torchmetrics.text.bert import BERTScore
 import os
 import argparse
 from icecream import ic
+import numpy as np
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
@@ -62,7 +63,7 @@ class T5SummarizationModule(pl.LightningModule):
                              attention_mask=batch["attention_mask"],
                              labels=batch["labels"])
         loss = outputs['loss']
-        self.log("train_loss", loss.item(), on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+        self.log("train_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss # Always return the loss
 
     def on_train_epoch_end(self):
@@ -77,21 +78,30 @@ class T5SummarizationModule(pl.LightningModule):
             ic(loss)
             self.log("val_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
             return loss
-    
-    # def _compute_metrics(self, batch, batch_idx):
-        # generations = self.predict_step(batch, batch_idx)
-        # return {**self.rouge_score(generations, batch["labels"]), **self.bert_score(generations, batch["labels"])}
+        
+    def on_validation_epoch_end(self):
+        # Compute metrics and log them
+        with torch.no_grad():
+            results = self._compute_metrics(self.valid_predictions, self.valid_labels)
+            self.log_dict("val_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
 
-    # def compute_metrics(eval_pred):
-    # predictions, labels = eval_pred
-    # decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
-    # labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-    # decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-    # result_rouge = rouge(preds=decoded_preds, target=decoded_labels)
-    # result_brt = bert_score(preds=decoded_preds, target=decoded_labels)
-    # result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
-    # results = {**result_rouge, **result_brt_average_values}
-    # return results
+    def on_test_epoch_end(self):
+        # Compute metrics and log them
+        with torch.no_grad():
+            results = self._compute_metrics(self.test_predictions, self.test_labels)
+            self.log_dict("test_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+            
+    def _compute_metrics(self, batch, batch_idx):
+        labels = batch["labels"]
+        predictions = self.generate(batch, batch_idx)
+        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
+        labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
+        decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
+        result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
+        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+        result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
+        results = {**result_rouge, **result_brt_average_values}
+        return results
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
