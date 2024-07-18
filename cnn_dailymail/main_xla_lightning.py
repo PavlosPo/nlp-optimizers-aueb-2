@@ -10,7 +10,8 @@ from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
 import os
 import argparse
-from torch.utils.data import DataLoader
+from ic import ic
+
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
@@ -58,6 +59,8 @@ class T5SummarizationModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs.loss
+        ic(outputs)
+        ic(loss)
         # Move loss to CPU before logging
         loss_cpu = loss.detach().cpu()
         self.log("train_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
