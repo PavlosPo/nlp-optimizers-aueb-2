@@ -81,20 +81,30 @@ class T5SummarizationModule(pl.LightningModule):
     def _compute_metrics(self, batch, batch_idx):
         generations = self.predict_step(batch, batch_idx)
         return {**self.rouge_score(generations, batch["labels"]), **self.bert_score(generations, batch["labels"])}
-    
-        
+
+    # def compute_metrics(eval_pred):
+    # predictions, labels = eval_pred
+    # decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
+    # labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+    # decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+    # result_rouge = rouge(preds=decoded_preds, target=decoded_labels)
+    # result_brt = bert_score(preds=decoded_preds, target=decoded_labels)
+    # result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
+    # results = {**result_rouge, **result_brt_average_values}
+    # return results
+
     def test_step(self, batch, batch_idx):
-        loss = self.model(input_ids=batch["input_ids"],
+        outputs = self.model(input_ids=batch["input_ids"],
                              attention_mask=batch["attention_mask"],
-                             labels=batch["labels"]).item()
+                             labels=batch["labels"])
+        loss = outputs['loss'].item()
+        ic(loss)
         # Move loss to CPU before logging
-        # loss_cpu = loss.detach().cpu()
         self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
     
     def on_validation_batch_end(self, outputs, batch, batch_idx):
         pass
-        
 
     def on_test_epoch_end(self):
         pass
@@ -137,28 +147,29 @@ class T5SummarizationDataModule(pl.LightningDataModule):
     def prepare_data(self):
         # download, IO, etc. Useful with shared filesystems
         # only called on 1 GPU/TPU in distributed
-        load_dataset(self.dataset_name, '3.0.0')
-        AutoTokenizer.from_pretrained(self.model_name)
+        self.dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
 
     def setup(self, stage):
         # make assignments here (val/train/test split)
         # called on every process in DDP
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
+        # self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
 
         # Load and preprocess the dataset
-        dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
+        # dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
         
         if stage == 'fit' or stage is None:
-            train = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
+            train = self.dataset['train'].select(range(min(self.train_range, len(self.dataset['train']))))
             self.train_dataset = self._preprocess_dataset(train)
 
-            temp = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
+            temp = self.dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
             val = temp['train'].select(range(min(self.val_range, len(temp['train']))))
             self.val_dataset = self._preprocess_dataset(val)
 
         if stage == 'test' or stage is None:
-            temp = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
+            temp = self.dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
             test = temp['test'].select(range(min(self.test_range, len(temp['test']))))
             self.test_dataset = self._preprocess_dataset(test)
     
