@@ -61,7 +61,7 @@ class T5SummarizationModule(pl.LightningModule):
         # Move loss to CPU before logging
         loss_cpu = loss.detach().cpu()
         self.log("train_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return loss  # Always return the loss
+        return {"loss" : loss_cpu}  # Always return the loss
 
     def validation_step(self, batch, batch_idx):
         outputs = self(**batch)
