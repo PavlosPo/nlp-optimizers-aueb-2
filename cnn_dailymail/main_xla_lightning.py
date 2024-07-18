@@ -36,10 +36,10 @@ learning_rate = 9.9879589111261e-06
 batch_size = args.batch_size
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model, model_name, learning_rate, optimizer_name="adamw", train_loader=None, val_loader=None, test_loader=None):        
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw", train_loader=None, val_loader=None, test_loader=None):        
         super().__init__()
-        self.save_hyperparameters()
-        self.model = model.train()
+        # self.save_hyperparameters()
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
@@ -57,7 +57,7 @@ class T5SummarizationModule(pl.LightningModule):
         return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
 
     def training_step(self, batch, batch_idx):
-        outputs = self.model(input_ids=batch["input_ids"],
+        outputs = self.forward(input_ids=batch["input_ids"],
                              attention_mask=batch["attention_mask"],
                              labels=batch["labels"])
         loss = outputs['loss'].item()
@@ -69,18 +69,18 @@ class T5SummarizationModule(pl.LightningModule):
         pass
 
     def validation_step(self, batch, batch_idx):
-        outputs = self.model(input_ids=batch["input_ids"],
-                             attention_mask=batch["attention_mask"],
-                             labels=batch["labels"])
-        loss = outputs['loss'].item()
-        ic(loss)
-        # Move loss to CPU before logging
-        self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return loss
+        with torch.no_grad():
+            outputs = self.forward(input_ids=batch["input_ids"],
+                                attention_mask=batch["attention_mask"],
+                                labels=batch["labels"])
+            loss = outputs['loss'].item()
+            ic(loss)
+            self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            return loss
     
-    def _compute_metrics(self, batch, batch_idx):
-        generations = self.predict_step(batch, batch_idx)
-        return {**self.rouge_score(generations, batch["labels"]), **self.bert_score(generations, batch["labels"])}
+    # def _compute_metrics(self, batch, batch_idx):
+        # generations = self.predict_step(batch, batch_idx)
+        # return {**self.rouge_score(generations, batch["labels"]), **self.bert_score(generations, batch["labels"])}
 
     # def compute_metrics(eval_pred):
     # predictions, labels = eval_pred
@@ -94,14 +94,14 @@ class T5SummarizationModule(pl.LightningModule):
     # return results
 
     def test_step(self, batch, batch_idx):
-        outputs = self.model(input_ids=batch["input_ids"],
-                             attention_mask=batch["attention_mask"],
-                             labels=batch["labels"])
-        loss = outputs['loss'].item()
-        ic(loss)
-        # Move loss to CPU before logging
-        self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return loss
+        with torch.no_grad():
+            outputs = self.forward(input_ids=batch["input_ids"],
+                                attention_mask=batch["attention_mask"],
+                                labels=batch["labels"])
+            loss = outputs['loss'].item()
+            ic(loss)
+            self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            return loss
     
     def on_validation_batch_end(self, outputs, batch, batch_idx):
         pass
@@ -109,10 +109,10 @@ class T5SummarizationModule(pl.LightningModule):
     def on_test_epoch_end(self):
         pass
     
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.model.generate(input_ids=batch["input_ids"],
-                                   attention_mask=batch["attention_mask"],
-                                   max_length=512)
+    # def predict_step(self, batch, batch_idx, dataloader_idx=0):
+    #     return self.model.generate(input_ids=batch["input_ids"],
+    #                                attention_mask=batch["attention_mask"],
+    #                                max_length=512)
 
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
