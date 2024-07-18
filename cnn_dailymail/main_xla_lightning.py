@@ -46,8 +46,8 @@ class T5SummarizationModule(pl.LightningModule):
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
-        self.rouge_score = ROUGEScore(use_stemmer=True)
-        self.bert_score = BERTScore(model_name_or_path='roberta-large')
+        # self.rouge_score = ROUGEScore(use_stemmer=True)
+        # self.bert_score = BERTScore(model_name_or_path='roberta-large')
         self.valid_predictions = []
         self.valid_labels = []
         self.test_predictions = []
@@ -59,28 +59,28 @@ class T5SummarizationModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs.loss
-        ic(outputs)
-        ic(loss)
+        # ic(outputs)
+        # ic(loss)
         # Move loss to CPU before logging
-        loss_cpu = loss.detach().cpu()
-        self.log("train_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return {"loss" : loss}  # Always return the loss
+        # loss_cpu = loss.detach().cpu()
+        # self.log("train_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss # Always return the loss
 
     def validation_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs.loss
         # Move loss to CPU before logging
-        loss_cpu = loss.detach().cpu()
-        self.log("val_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return {"val_loss" : loss}
+        # loss_cpu = loss.detach().cpu()
+        # self.log("val_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss
 
     def test_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs.loss
         # Move loss to CPU before logging
-        loss_cpu = loss.detach().cpu()
-        self.log("test_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return {"test_loss" : loss}
+        # loss_cpu = loss.detach().cpu()
+        # self.log("test_loss", loss_cpu, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss
     
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         return self(**batch)
