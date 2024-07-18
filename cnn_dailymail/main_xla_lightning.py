@@ -148,29 +148,29 @@ class T5SummarizationDataModule(pl.LightningDataModule):
     def prepare_data(self):
         # download, IO, etc. Useful with shared filesystems
         # only called on 1 GPU/TPU in distributed
-        self.dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
+        load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
+        # self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        # self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
 
     def setup(self, stage):
         # make assignments here (val/train/test split)
         # called on every process in DDP
-        # self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        # self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
 
         # Load and preprocess the dataset
-        # dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
+        dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
         
         if stage == 'fit' or stage is None:
-            train = self.dataset['train'].select(range(min(self.train_range, len(self.dataset['train']))))
+            train = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
             self.train_dataset = self._preprocess_dataset(train)
 
-            temp = self.dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
+            temp = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
             val = temp['train'].select(range(min(self.val_range, len(temp['train']))))
             self.val_dataset = self._preprocess_dataset(val)
 
         if stage == 'test' or stage is None:
-            temp = self.dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
+            temp = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
             test = temp['test'].select(range(min(self.test_range, len(temp['test']))))
             self.test_dataset = self._preprocess_dataset(test)
     
