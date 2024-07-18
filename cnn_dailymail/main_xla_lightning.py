@@ -248,8 +248,7 @@ def main():
     pl.seed_everything(seed_num)
     
     
-    model = T5SummarizationModule(model=AutoModelForSeq2SeqLM.from_pretrained(model_name),
-                                  model_name=model_name, 
+    model = T5SummarizationModule(model_name=model_name, 
                                   learning_rate=learning_rate, 
                                   optimizer_name=optimizer_name,)
     
