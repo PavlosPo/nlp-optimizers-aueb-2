@@ -139,10 +139,6 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=data_collator, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=data_collator, num_workers=0)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=data_collator, num_workers=0)
-
-    train_loader = pl_xla.MpDeviceLoader(train_loader, xm.xla_device())
-    val_loader = pl_xla.MpDeviceLoader(val_loader, xm.xla_device())
-    test_loader = pl_xla.MpDeviceLoader(test_loader, xm.xla_device())
     
     logger = TensorBoardLogger("tb_logs", name="my_model")
     checkpoint_callback = ModelCheckpoint(
@@ -158,14 +154,13 @@ def main():
         max_epochs=epochs,
         logger=logger,
         callbacks=[checkpoint_callback],
-        log_every_n_steps=10,
-        val_check_interval=1,
-        num_sanity_val_steps=0,
+        log_every_n_steps=1000,
+        # val_check_interval=1,
         enable_checkpointing=True,
-        accelerator='tpu',
-        devices=4,
-        accumulate_grad_batches=8,
-        precision="bf16-true"
+        accelerator='auto',
+        devices='auto',
+        # accumulate_grad_batches=8,
+        # precision="bf16-true"
     )
 
     trainer.fit(model, train_loader, val_loader)
@@ -191,17 +186,4 @@ def main():
         f.write("\n".join([f"{key}: {value}" for key, value in test_results[0].items()]))
 
 if __name__ == "__main__":
-    import os
-    # os.environ['PJRT_DEVICE'] = 'TPU'  # Ensure this is set
-    # os.environ['TPU_NUM_DEVICES'] = '4'
-    try:
-        # xm.mark_step()  # Initialize TPU
-        # xmp.spawn(main, nprocs=1, start_method='fork')  # Try reducing nprocs
-        main()
-    except Exception as e:
-        print(f"An error occurred: {e}")
-    
-def _mp_fn(index):
-    # For xla_spawn (TPUs)
-    print("Running with TPU")
     main()
