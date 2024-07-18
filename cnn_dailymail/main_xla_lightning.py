@@ -155,8 +155,6 @@ def main():
         max_epochs=epochs,
         logger=logger,
         callbacks=[checkpoint_callback],
-        steps_per_epoch = train_dataset.num_rows, # batch_Size,
-        steps_per_val = val_dataset.num_rows, # batch_Size,
         log_every_n_steps=1000,
         # val_check_interval=1,
         enable_checkpointing=True,
