@@ -57,12 +57,11 @@ class T5SummarizationModule(pl.LightningModule):
         return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
 
     def training_step(self, batch, batch_idx):
-        loss = self.forward(input_ids=batch["input_ids"], 
-                             attention_mask=batch["attention_mask"], 
-                             labels=batch["labels"]).item()
-        
-        # Move loss to CPU before logging
-        # loss_cpu = loss.detach().cpu()
+        outputs = self.model(input_ids=batch["input_ids"],
+                             attention_mask=batch["attention_mask"],
+                             labels=batch["labels"])
+        loss = outputs['loss'].item()
+        ic(loss)
         self.log("train_loss", loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         return loss # Always return the loss
 
@@ -70,14 +69,14 @@ class T5SummarizationModule(pl.LightningModule):
         pass
 
     def validation_step(self, batch, batch_idx):
-        loss = self.model(input_ids=batch["input_ids"],
+        outputs = self.model(input_ids=batch["input_ids"],
                              attention_mask=batch["attention_mask"],
-                             labels=batch["labels"]).item()
+                             labels=batch["labels"])
+        loss = outputs['loss'].item()
+        ic(loss)
         # Move loss to CPU before logging
         self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
-    
-    
     
     def _compute_metrics(self, batch, batch_idx):
         generations = self.predict_step(batch, batch_idx)
