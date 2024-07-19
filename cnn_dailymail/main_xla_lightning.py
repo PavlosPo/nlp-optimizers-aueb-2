@@ -12,14 +12,7 @@ import os
 import argparse
 from icecream import ic
 import numpy as np
-# import time 
-
-# Get xm device
-import torch_xla.core.xla_model as xm
-
-# Assign device
-def get_device():
-    return xm.xla_device()
+# import time
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
@@ -49,13 +42,13 @@ class T5SummarizationModule(pl.LightningModule):
         super().__init__()
         # self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
+        self.model = torch.compile(self.model, options={"shape_padding": True}) # More memory but faster, Also compile in DDP fixes a lot of things.
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
         self.max_new_tokens = max_new_tokens
-        self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         ic(self.device)
-        ic(get_device())
+        # I can use self.device but will not work on __init__ method. I will Initialize it later.
         # self.bert_score = BERTScore(model_name_or_path='microsoft/deberta-xlarge-mnli', sync_on_compute=True, max_length=self.max_new_tokens)
         self.valid_step_outputs = []
         self.test_step_outputs = []
@@ -74,6 +67,7 @@ class T5SummarizationModule(pl.LightningModule):
         pass
     
     def validation_step(self, batch, batch_idx):
+        self._initialize_metrics()
         with torch.no_grad():
             outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
             loss = outputs['loss']
@@ -81,6 +75,15 @@ class T5SummarizationModule(pl.LightningModule):
             self.valid_step_outputs.append((generated_ids, batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
+    
+    def _initialize_metrics(self):
+        if not hasattr(self, "rouge_score"):
+            print("\nLoading ROUGEScore..\n")
+            self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
+        if not hasattr(self, "bert_score"):
+            print("\nLoading BERTScore..\n")
+            ic(self.device)
+            self.bert_score = BERTScore(model_name_or_path='microsoft/deberta-xlarge-mnli', sync_on_compute=True, max_length=self.max_new_tokens, device=self.device)
 
     def on_validation_epoch_end(self):
         self._eval_epoch_end(self.valid_step_outputs, "val")
@@ -219,19 +222,23 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         return model_inputs
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True, num_workers=239)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True, num_workers=239, drop_last=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, num_workers=239)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, num_workers=239, drop_last=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, num_workers=239)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, num_workers=239, drop_last=True)
 
     
         
 def main():
     pl.seed_everything(seed_num)
     model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, optimizer_name=optimizer_name, max_new_tokens=max_length)
+    
+    # Compile the model for faster loading
+    # model = torch.compile(model, options={"shape_padding": True}) # More memory but faster
+    
     data_module = T5SummarizationDataModule(
         model_name=model_name,
         dataset_name=dataset_name,
