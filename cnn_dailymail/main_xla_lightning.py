@@ -211,13 +211,13 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         return model_inputs
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True, num_workers=239)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.data_collator)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, num_workers=239)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, num_workers=239)
 
     
         
