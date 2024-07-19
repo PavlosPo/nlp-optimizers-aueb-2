@@ -52,7 +52,7 @@ class T5SummarizationModule(pl.LightningModule):
         self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         ic(self.device)
         ic(self.sigma)
-        self.bert_score = BERTScore(model_name_or_path='roberta-large', device=self.device, sync_on_compute=True, max_length=self.max_new_tokens)
+        self.bert_score = BERTScore(model_name_or_path='roberta-large', sync_on_compute=True, max_length=self.max_new_tokens)
         self.training_step_outputs = []
         self.valid_step_predictions = []
         self.valid_step_labels = []
