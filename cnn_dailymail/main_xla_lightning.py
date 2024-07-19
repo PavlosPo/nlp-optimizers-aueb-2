@@ -38,14 +38,15 @@ learning_rate = 9.9879589111261e-06
 batch_size = args.batch_size
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw", max_new_tokens=20):        
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw", generation_max_tokens=20):        
         super().__init__()
         # self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
-        self.max_new_tokens = max_new_tokens
+        # self.max_new_tokens = max_new_tokens
+        self.generation_max_tokens = generation_max_tokens
         ic(self.device)
         # I can use self.device but will not work on __init__ method. I will Initialize it later.
         # self.bert_score = BERTScore(model_name_or_path='microsoft/deberta-xlarge-mnli', sync_on_compute=True, max_length=self.max_new_tokens)
@@ -55,7 +56,7 @@ class T5SummarizationModule(pl.LightningModule):
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         if predict_with_generate:
-            outputs['sequences'] = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, max_length=20)
+            outputs['sequences'] = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, max_length=self.generation_max_tokens)
         return outputs
         
     def training_step(self, batch, batch_idx):
@@ -81,9 +82,8 @@ class T5SummarizationModule(pl.LightningModule):
             print("Loading ROUGEScore..")
             self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         if not hasattr(self, "bert_score"):
-            print("Not Loading BERTScore..")
-            # ic(self.device)
-            # self.bert_score = BERTScore(model_name_or_path='distilbert-base-uncased', model=self.model, user_tokenizer=self.tokenizer, sync_on_compute=True, max_length=self.max_new_tokens, device=self.device, force_download=True)
+            print("Loading BERTScore..")
+            self.bert_score = BERTScore(model_name_or_path='distilbert-base-uncased', model=self.model, user_tokenizer=self.tokenizer, max_length=self.generation_max_tokens, sync_on_compute=True, device=self.device)
 
     def on_validation_epoch_end(self):
         self._eval_epoch_end(self.valid_step_outputs, "val")
@@ -141,12 +141,12 @@ class T5SummarizationModule(pl.LightningModule):
         decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
         
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
-        # result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         
-        # result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-        # results = {**result_rouge, **result_brt_average_values}
-        # return results
-        return result_rouge
+        result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
+        results = {**result_rouge, **result_brt_average_values}
+        return results
+        # return result_rouge
     
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
