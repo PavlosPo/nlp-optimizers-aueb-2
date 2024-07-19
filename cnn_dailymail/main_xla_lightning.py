@@ -62,7 +62,6 @@ class T5SummarizationModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
         loss = outputs['loss']
-        # self.training_step_outputs.append(preds)
         self.log("train_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss # Always return the loss
 
@@ -75,7 +74,8 @@ class T5SummarizationModule(pl.LightningModule):
                                 attention_mask=batch["attention_mask"],
                                 labels=batch["labels"])
             loss = outputs['loss']
-            self.valid_step_predictions.append(outputs['logits'])
+            generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+            self.valid_step_predictions.append(generated_ids)
             self.valid_step_labels.append(batch["labels"])
             self.log("val_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
             return loss
@@ -87,7 +87,8 @@ class T5SummarizationModule(pl.LightningModule):
         with torch.no_grad():
             results = self._log_metrics(prefix="val", predictions=all_preds, labels=all_labels)
             # self.log_dict("val_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
-        self.training_step_outputs.clear()
+        self.valid_step_predictions.clear()
+        self.valid_step_labels.clear()
         
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
@@ -95,7 +96,8 @@ class T5SummarizationModule(pl.LightningModule):
                                 attention_mask=batch["attention_mask"],
                                 labels=batch["labels"])
             loss = outputs['loss']
-            self.test_step_predictions.append(outputs['logits'])
+            generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+            self.test_step_predictions.append(generated_ids)
             self.test_step_labels.append(batch["labels"])
             self.log("test_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
             return loss
@@ -107,6 +109,8 @@ class T5SummarizationModule(pl.LightningModule):
         with torch.no_grad():
             self._log_metrics(prefix="test", predictions=all_preds, labels=all_labels)
             # self.log_dict("test_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.test_step_predictions.clear()
+        self.test_step_labels.clear()
             
     # def _compute_metrics(self, preds, labels):
     #     decoded_preds = self.tokenizer.batch_decode(preds, skip_special_tokens=True)
@@ -186,6 +190,9 @@ class T5SummarizationModule(pl.LightningModule):
 
         # Decode predictions and labels
         decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
+        
+        # Convert predictions from logits to token IDs
+        # predictions = np.argmax(predictions, axis=-1)
         
         # Process labels
         processed_labels = []
