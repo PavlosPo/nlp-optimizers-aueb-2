@@ -14,6 +14,16 @@ from icecream import ic
 import numpy as np
 # import time 
 
+# Get xm device
+import torch_xla.core.xla_model as xm
+import torch_xla.distributed.xla_multiprocessing as xmp
+import torch_xla.distributed.parallel_loader as pl
+import torch_xla.distributed.xla_multiprocessing as xmp
+
+# Assign device
+def get_device():
+    return xm.xla_device()
+
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
@@ -48,7 +58,8 @@ class T5SummarizationModule(pl.LightningModule):
         self.max_new_tokens = max_new_tokens
         self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         ic(self.device)
-        self.bert_score = BERTScore(model_name_or_path='microsoft/deberta-xlarge-mnli', sync_on_compute=True, max_length=self.max_new_tokens)
+        ic(get_device())
+        # self.bert_score = BERTScore(model_name_or_path='microsoft/deberta-xlarge-mnli', sync_on_compute=True, max_length=self.max_new_tokens)
         self.valid_step_outputs = []
         self.test_step_outputs = []
 
@@ -131,12 +142,12 @@ class T5SummarizationModule(pl.LightningModule):
         decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
         
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
-        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+        # result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         
-        result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-        results = {**result_rouge, **result_brt_average_values}
-        return results
-        # return result_rouge
+        # result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
+        # results = {**result_rouge, **result_brt_average_values}
+        # return results
+        return result_rouge
     
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
