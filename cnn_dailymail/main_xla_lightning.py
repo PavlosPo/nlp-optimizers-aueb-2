@@ -41,7 +41,7 @@ class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", max_new_tokens=20):        
         super().__init__()
         # self.save_hyperparameters()
-        self.register_buffer("model", AutoModelForSeq2SeqLM.from_pretrained(model_name).train())
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
