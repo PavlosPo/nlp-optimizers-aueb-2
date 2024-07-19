@@ -52,9 +52,6 @@ class T5SummarizationModule(pl.LightningModule):
         self.valid_step_outputs = []
         self.test_step_outputs = []
 
-    # def on_train_start(self, trainer, pl_module):
-    #     self._initialize_metrics()
-    
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         if predict_with_generate:
@@ -64,7 +61,6 @@ class T5SummarizationModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self.forward(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
         loss = outputs['loss']
-        ic(outputs.keys())
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
@@ -76,7 +72,6 @@ class T5SummarizationModule(pl.LightningModule):
         with torch.no_grad():
             outputs = self.forward(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"], predict_with_generate=True)
             loss = outputs['loss']
-            ic(outputs.keys())
             self.valid_step_outputs.append((outputs['sequences'], batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
@@ -136,8 +131,8 @@ class T5SummarizationModule(pl.LightningModule):
         self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
     
     def _compute_metrics(self, predictions, labels):
-        # predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
-        # labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
+        predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
+        labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
         
         decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
         
@@ -239,15 +234,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 def main():
     pl.seed_everything(seed_num)
     model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, optimizer_name=optimizer_name)
-    
-    # Compile the model for faster loading
-    # model = torch.compile(model, options={"shape_padding": True}) # More memory but faster
-    
     data_module = T5SummarizationDataModule(
-        # The code is attempting to compile a model using the `torch` library with the option
-        # `shape_padding` set to `True`. This option is likely used to enable shape padding which can
-        # improve performance at the cost of using more memory. However, the code is commented out with
-        # `#`, so it is not currently being executed.
         model_name=model_name,
         dataset_name=dataset_name,
         max_length=max_length,
@@ -274,7 +261,7 @@ def main():
         callbacks=[checkpoint_callback],
         log_every_n_steps=10,
         enable_checkpointing=True,
-        # num_sanity_val_steps=0,
+        num_sanity_val_steps=0,
         accelerator='tpu',
         devices='auto',
         accumulate_grad_batches=16,
