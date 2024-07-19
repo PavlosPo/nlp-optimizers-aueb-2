@@ -97,12 +97,12 @@ class T5SummarizationModule(pl.LightningModule):
         with torch.no_grad():
             self._log_metrics(prefix, all_preds, all_labels)
         
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        with torch.no_grad:
-            generations = self.generate(input_ids=batch["input_ids"],
-                                    attention_mask=batch["attention_mask"],
-                                    labels=batch["labels"], max_new_tokens=self.max_new_tokens)
-        return generations
+    # def predict_step(self, batch, batch_idx, dataloader_idx=0):
+    #     with torch.no_grad:
+    #         generations = self.generate(input_ids=batch["input_ids"],
+    #                                 attention_mask=batch["attention_mask"],
+    #                                 labels=batch["labels"], max_new_tokens=self.max_new_tokens)
+    #     return generations
         
     def _log_metrics(self, prefix, predictions, labels):
         # ic(f"Debug information for {prefix}_predictions:")
@@ -251,10 +251,10 @@ def main():
         callbacks=[checkpoint_callback],
         log_every_n_steps=10,
         enable_checkpointing=True,
-        num_sanity_val_steps=0,
+        # num_sanity_val_steps=0,
         accelerator='auto',
         devices='auto',
-        accumulate_grad_batches=32,
+        accumulate_grad_batches=16,
         # precision="1"
     )
     trainer.fit(model, datamodule=data_module)
