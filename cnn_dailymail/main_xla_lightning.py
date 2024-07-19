@@ -3,7 +3,7 @@ import torch
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
-import torch.utils.data as data
+from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
 from datasets import load_dataset
 from torchmetrics.text.rouge import ROUGEScore
@@ -12,6 +12,7 @@ import os
 import argparse
 from icecream import ic
 import numpy as np
+import time 
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
@@ -44,18 +45,10 @@ class T5SummarizationModule(pl.LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
-        # self.register_buffer("sigma", torch.eye(3)) # Access self.sigma anywhere
         self.max_new_tokens = max_new_tokens
         self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         ic(self.device)
-        # ic(self.sigma)
-        # self.bert_score = BERTScore(model_name_or_path='roberta-large', sync_on_compute=True, max_length=self.max_new_tokens)
-        # self.training_step_outputs = []
-        # self.valid_step_predictions = []
-        # self.valid_step_labels = []
-        # self.test_step_predictions = []
-        # self.test_step_labels = []
-        # Store predictions and labels
+        self.bert_score = BERTScore(model_name_or_path='roberta-large', sync_on_compute=True, max_length=self.max_new_tokens)
         self.valid_step_outputs = []
         self.test_step_outputs = []
 
@@ -63,11 +56,6 @@ class T5SummarizationModule(pl.LightningModule):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         return outputs
 
-    # def training_step(self, batch, batch_idx):
-    #     outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
-    #     loss = outputs['loss']
-    #     self.log("train_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-    #     return loss # Always return the loss
     def training_step(self, batch, batch_idx):
         outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
         loss = outputs['loss']
@@ -76,18 +64,6 @@ class T5SummarizationModule(pl.LightningModule):
 
     def on_train_epoch_end(self):
         pass
-
-    # def validation_step(self, batch, batch_idx):
-    #     with torch.no_grad():
-    #         outputs = self(input_ids=batch["input_ids"],
-    #                             attention_mask=batch["attention_mask"],
-    #                             labels=batch["labels"])
-    #         loss = outputs['loss']
-    #         generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
-    #         self.valid_step_predictions.append(generated_ids)
-    #         self.valid_step_labels.append(batch["labels"])
-    #         self.log("val_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-    #         return loss
     
     def validation_step(self, batch, batch_idx):
         with torch.no_grad():
@@ -97,32 +73,11 @@ class T5SummarizationModule(pl.LightningModule):
             self.valid_step_outputs.append((generated_ids, batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
-        
-    # def on_validation_epoch_end(self):
-    #     # Compute metrics and log them
-    #     all_preds = torch.cat(self.valid_step_predictions, dim=0)
-    #     all_labels = torch.cat(self.valid_step_labels, dim=0)
-    #     with torch.no_grad():
-    #         results = self._log_metrics(prefix="val", predictions=all_preds, labels=all_labels)
-    #         # self.log_dict("val_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
-    #     self.valid_step_predictions.clear()
-    #     self.valid_step_labels.clear()
+
     def on_validation_epoch_end(self):
         self._eval_epoch_end(self.valid_step_outputs, "val")
         self.valid_step_outputs.clear()
-        
-    # def test_step(self, batch, batch_idx):
-    #     with torch.no_grad():
-    #         outputs = self(input_ids=batch["input_ids"],
-    #                             attention_mask=batch["attention_mask"],
-    #                             labels=batch["labels"])
-    #         loss = outputs['loss']
-    #         generated_ids = self.predict(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
-    #         self.test_step_predictions.append(generated_ids)
-    #         self.test_step_labels.append(batch["labels"])
-    #         self.log("test_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-    #         return loss
-    
+
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
             outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
@@ -132,17 +87,6 @@ class T5SummarizationModule(pl.LightningModule):
             self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
-    # def on_test_epoch_end(self, ):
-    #     # Compute metrics and log them
-    #     all_preds = torch.cat(self.test_step_predictions, dim=0)
-    #     all_labels = torch.cat(self.test_step_labels, dim=0)
-    #     with torch.no_grad():
-    #         self._log_metrics(prefix="test", predictions=all_preds, labels=all_labels)
-    #         # self.log_dict("test_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
-    #     self.test_step_predictions.clear()
-    #     self.test_step_labels.clear()
-    
-    
     def on_test_epoch_end(self):
         self._eval_epoch_end(self.test_step_outputs, "test")
         self.test_step_outputs.clear()
@@ -187,12 +131,12 @@ class T5SummarizationModule(pl.LightningModule):
         decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
         
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
-        # result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         
-        # result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-        # results = {**result_rouge, **result_brt_average_values}
-        # return results
-        return result_rouge
+        result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
+        results = {**result_rouge, **result_brt_average_values}
+        return results
+        # return result_rouge
     
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
@@ -224,20 +168,19 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None
+
     def prepare_data(self):
-        # download, IO, etc. Useful with shared filesystems
-        # only called on 1 GPU/TPU in distributed
-        load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
+        # Downloading data, called only once on 1 GPU/TPU in distributed settings
+        load_dataset(self.dataset_name).shuffle(seed=self.seed_num)
         AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage):
-        # make assignments here (val/train/test split)
-        # called on every process in DDP
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # Setting up the data, called on every GPU/TPU in DDP
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
 
         # Load and preprocess the dataset
-        dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
+        dataset = load_dataset(self.dataset_name).shuffle(seed=self.seed_num)
         
         if stage == 'fit' or stage is None:
             train = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
@@ -268,33 +211,19 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         return model_inputs
 
     def train_dataloader(self):
-        return data.DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True)
 
     def val_dataloader(self):
-        return data.DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.data_collator)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.data_collator)
 
     def test_dataloader(self):
-        return data.DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator)
 
-    def on_exception(self, exception):
-        # clean up state after the trainer faced an exception\
-            pass
-        
-    def teardown(self, stage: str):
-        # clean up state after the trainer stops, delete files...
-        # called on every process in DDP
-        if stage == 'fit':
-            self.train_dataset = None
-            self.val_dataset = None
-        elif stage == 'test':
-            self.test_dataset = None
+    
         
 def main():
     pl.seed_everything(seed_num)
-    
-    
     model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, optimizer_name=optimizer_name)
-    
     data_module = T5SummarizationDataModule(
         model_name=model_name,
         dataset_name=dataset_name,
@@ -305,7 +234,6 @@ def main():
         test_range=test_range,
         seed_num=seed_num
     )
-    
     logger = TensorBoardLogger("tb_logs", name="my_model")
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
@@ -315,7 +243,8 @@ def main():
         monitor='val_loss',
         mode='min'
     )
-
+    # Get the start of time
+    start = time.time()
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=logger,
@@ -328,12 +257,14 @@ def main():
         accumulate_grad_batches=32,
         # precision="1"
     )
-
     trainer.fit(model, datamodule=data_module)
     test_results = trainer.test(model, datamodule=data_module)
-    
+    # Get the last time
+    end = time.time()
+    # Get the total time in seconds
+    total_time = end - start
+    print(f"Total time: {total_time}")
     os.makedirs(output_dir, exist_ok=True)
-
     with open(f"{output_dir}/results_with_seed_{seed_num}.txt", "w") as f:
         f.write(f"Seed: {seed_num}\n")
         f.write(f"Model: {model_name}\n")
@@ -343,6 +274,7 @@ def main():
         f.write(f'Test range: {test_range}\n')
         f.write(f'Validation range: {val_range}\n')
         f.write(f'Learning rate: {learning_rate}\n')
+        f.write(f'Time Completion: {round(total_time, 2)} Seconds\n')
         f.write("\nBest checkpoint:\n")
         f.write(f"{checkpoint_callback.best_model_path}\n")
         f.write("\nTest results:\n")
