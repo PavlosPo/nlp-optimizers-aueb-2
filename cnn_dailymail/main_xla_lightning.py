@@ -79,10 +79,8 @@ class T5SummarizationModule(pl.LightningModule):
     
     def _initialize_metrics(self):
         if not hasattr(self, "rouge_score"):
-            print("Loading ROUGEScore..")
             self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         if not hasattr(self, "bert_score"):
-            print("Loading BERTScore..")
             self.bert_score = BERTScore(model_name_or_path='distilbert-base-uncased', model=self.model, user_tokenizer=self.tokenizer, max_length=self.generation_max_tokens, sync_on_compute=True, device=self.device)
 
     def on_validation_epoch_end(self):
