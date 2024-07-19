@@ -82,8 +82,8 @@ class T5SummarizationModule(pl.LightningModule):
         
     def on_validation_epoch_end(self):
         # Compute metrics and log them
-        all_preds = torch.stack(self.valid_step_predictions)
-        all_labels = torch.stack(self.valid_step_labels)
+        all_preds = torch.cat(self.valid_step_predictions, dim=0)
+        all_labels = torch.cat(self.valid_step_labels, dim=0)
         with torch.no_grad():
             results = self._log_metrics(prefix="val", predictions=all_preds, labels=all_labels)
             # self.log_dict("val_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
@@ -102,8 +102,8 @@ class T5SummarizationModule(pl.LightningModule):
 
     def on_test_epoch_end(self, ):
         # Compute metrics and log them
-        all_preds = torch.stack(self.test_step_predictions)
-        all_labels = torch.stack(self.test_step_labels)
+        all_preds = torch.cat(self.test_step_predictions, dim=0)
+        all_labels = torch.cat(self.test_step_labels, dim=0)
         with torch.no_grad():
             self._log_metrics(prefix="test", predictions=all_preds, labels=all_labels)
             # self.log_dict("test_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
