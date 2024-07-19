@@ -252,8 +252,8 @@ def main():
         log_every_n_steps=10,
         enable_checkpointing=True,
         # num_sanity_val_steps=0,
-        accelerator='auto',
-        devices='auto',
+        accelerator='tpu',
+        devices=1,
         accumulate_grad_batches=16,
         # precision="1"
     )
