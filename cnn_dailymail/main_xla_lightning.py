@@ -171,7 +171,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 
     def prepare_data(self):
         # Downloading data, called only once on 1 GPU/TPU in distributed settings
-        load_dataset(self.dataset_name).shuffle(seed=self.seed_num)
+        load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
         AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage):
@@ -180,7 +180,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
 
         # Load and preprocess the dataset
-        dataset = load_dataset(self.dataset_name).shuffle(seed=self.seed_num)
+        dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
         
         if stage == 'fit' or stage is None:
             train = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
