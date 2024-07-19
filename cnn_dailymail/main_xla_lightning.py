@@ -45,173 +45,147 @@ class T5SummarizationModule(pl.LightningModule):
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
         self.register_buffer("sigma", torch.eye(3)) # Access self.sigma anywhere
-        # self.train_loader = train_loader
-        # self.val_loader = val_loader
-        # self.test_loader = test_loader
         self.max_new_tokens = max_new_tokens
         self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         ic(self.device)
         ic(self.sigma)
         self.bert_score = BERTScore(model_name_or_path='roberta-large', sync_on_compute=True, max_length=self.max_new_tokens)
-        self.training_step_outputs = []
-        self.valid_step_predictions = []
-        self.valid_step_labels = []
-        self.test_step_predictions = []
-        self.test_step_labels = []
+        # self.training_step_outputs = []
+        # self.valid_step_predictions = []
+        # self.valid_step_labels = []
+        # self.test_step_predictions = []
+        # self.test_step_labels = []
+        # Store predictions and labels
+        self.valid_step_outputs = []
+        self.test_step_outputs = []
 
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         return outputs
 
+    # def training_step(self, batch, batch_idx):
+    #     outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
+    #     loss = outputs['loss']
+    #     self.log("train_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+    #     return loss # Always return the loss
     def training_step(self, batch, batch_idx):
         outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
         loss = outputs['loss']
-        self.log("train_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        return loss # Always return the loss
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss
 
     def on_train_epoch_end(self):
         pass
 
+    # def validation_step(self, batch, batch_idx):
+    #     with torch.no_grad():
+    #         outputs = self(input_ids=batch["input_ids"],
+    #                             attention_mask=batch["attention_mask"],
+    #                             labels=batch["labels"])
+    #         loss = outputs['loss']
+    #         generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
+    #         self.valid_step_predictions.append(generated_ids)
+    #         self.valid_step_labels.append(batch["labels"])
+    #         self.log("val_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+    #         return loss
+    
     def validation_step(self, batch, batch_idx):
         with torch.no_grad():
-            outputs = self(input_ids=batch["input_ids"],
-                                attention_mask=batch["attention_mask"],
-                                labels=batch["labels"])
+            outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
             loss = outputs['loss']
             generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
-            self.valid_step_predictions.append(generated_ids)
-            self.valid_step_labels.append(batch["labels"])
-            self.log("val_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-            return loss
+            self.valid_step_outputs.append((generated_ids, batch["labels"]))
+            self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss
         
+    # def on_validation_epoch_end(self):
+    #     # Compute metrics and log them
+    #     all_preds = torch.cat(self.valid_step_predictions, dim=0)
+    #     all_labels = torch.cat(self.valid_step_labels, dim=0)
+    #     with torch.no_grad():
+    #         results = self._log_metrics(prefix="val", predictions=all_preds, labels=all_labels)
+    #         # self.log_dict("val_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+    #     self.valid_step_predictions.clear()
+    #     self.valid_step_labels.clear()
     def on_validation_epoch_end(self):
-        # Compute metrics and log them
-        all_preds = torch.cat(self.valid_step_predictions, dim=0)
-        all_labels = torch.cat(self.valid_step_labels, dim=0)
-        with torch.no_grad():
-            results = self._log_metrics(prefix="val", predictions=all_preds, labels=all_labels)
-            # self.log_dict("val_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
-        self.valid_step_predictions.clear()
-        self.valid_step_labels.clear()
+        self._eval_epoch_end(self.valid_step_outputs, "val")
+        self.valid_step_outputs.clear()
         
+    # def test_step(self, batch, batch_idx):
+    #     with torch.no_grad():
+    #         outputs = self(input_ids=batch["input_ids"],
+    #                             attention_mask=batch["attention_mask"],
+    #                             labels=batch["labels"])
+    #         loss = outputs['loss']
+    #         generated_ids = self.predict(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
+    #         self.test_step_predictions.append(generated_ids)
+    #         self.test_step_labels.append(batch["labels"])
+    #         self.log("test_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+    #         return loss
+    
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
-            outputs = self(input_ids=batch["input_ids"],
-                                attention_mask=batch["attention_mask"],
-                                labels=batch["labels"])
+            outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
             loss = outputs['loss']
             generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
-            self.test_step_predictions.append(generated_ids)
-            self.test_step_labels.append(batch["labels"])
-            self.log("test_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-            return loss
+            self.test_step_outputs.append((generated_ids, batch["labels"]))
+            self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss
 
-    def on_test_epoch_end(self, ):
-        # Compute metrics and log them
-        all_preds = torch.cat(self.test_step_predictions, dim=0)
-        all_labels = torch.cat(self.test_step_labels, dim=0)
-        with torch.no_grad():
-            self._log_metrics(prefix="test", predictions=all_preds, labels=all_labels)
-            # self.log_dict("test_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
-        self.test_step_predictions.clear()
-        self.test_step_labels.clear()
-            
-    # def _compute_metrics(self, preds, labels):
-    #     decoded_preds = self.tokenizer.batch_decode(preds, skip_special_tokens=True)
-    #     labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
-    #     decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
-    #     result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
-    #     result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
-    #     result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
-    #     results = {**result_rouge, **result_brt_average_values}
-    #     return results
+    # def on_test_epoch_end(self, ):
+    #     # Compute metrics and log them
+    #     all_preds = torch.cat(self.test_step_predictions, dim=0)
+    #     all_labels = torch.cat(self.test_step_labels, dim=0)
+    #     with torch.no_grad():
+    #         self._log_metrics(prefix="test", predictions=all_preds, labels=all_labels)
+    #         # self.log_dict("test_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+    #     self.test_step_predictions.clear()
+    #     self.test_step_labels.clear()
     
-    # def _log_metrics(self, prefix, predictions, labels):
-    #     ic(f"Debug information for {prefix}_predictions:")
-    #     ic(len(predictions))
-    #     ic(type(predictions))
-    #     if len(predictions) > 0:
-    #         ic(type(predictions[0]))
-    #         ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
+    
+    def on_test_epoch_end(self):
+        self._eval_epoch_end(self.test_step_outputs, "test")
+        self.test_step_outputs.clear()
         
-    #     ic(f"Debug information for {prefix}_labels:")
-    #     ic(len(labels))
-    #     ic(type(labels))
-    #     if len(labels) > 0:
-    #         ic(type(labels[0]))
-    #         ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
-
-    #     metrics = self._compute_metrics(predictions, labels)
-    #     self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
-
+    def _eval_epoch_end(self, outputs, prefix):
+        all_preds = torch.cat([x[0] for x in outputs], dim=0)
+        all_labels = torch.cat([x[1] for x in outputs], dim=0)
+        with torch.no_grad():
+            self._log_metrics(prefix, all_preds, all_labels)
+        
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        with torch.no_grad:
+            generations = self.generate(input_ids=batch["input_ids"],
+                                    attention_mask=batch["attention_mask"],
+                                    labels=batch["labels"])
+        return generations
+        
     def _log_metrics(self, prefix, predictions, labels):
-        ic(f"Debug information for {prefix}_predictions:")
-        ic(len(predictions))
-        ic(type(predictions))
-        if len(predictions) > 0:
-            ic(type(predictions[0]))
-            ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
-        
-        ic(f"Debug information for {prefix}_labels:")
-        ic(len(labels))
-        ic(type(labels))
-        if len(labels) > 0:
-            ic(type(labels[0]))
-            ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
-
+        # ic(f"Debug information for {prefix}_predictions:")
+        # ic(len(predictions))
+        # ic(type(predictions))
+        # if len(predictions) > 0:
+        #     ic(type(predictions[0]))
+        #     ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
+        # ic(f"Debug information for {prefix}_labels:")
+        # ic(len(labels))
+        # ic(type(labels))
+        # if len(labels) > 0:
+        #     ic(type(labels[0]))
+        #     ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
         metrics = self._compute_metrics(predictions, labels)
         self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
-        
-    # def _compute_metrics(self, predictions, labels):
-    #     ic("Shapes inside compute_metrics:")
-    #     ic(len(predictions), predictions[0].shape if predictions else None)
-    #     ic(len(labels), labels[0].shape if labels else None)
-        
-    #     decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
-        
-    #     # Process labels
-    #     processed_labels = []
-    #     for label in labels:
-    #         label = label[label != -100]  # Remove padding
-    #         processed_labels.append(label)
-        
-    #     decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
-        
-    #     result_rouge = self.rouge(preds=decoded_preds, target=decoded_labels)
-    #     result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
-        
-    #     result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-    #     results = {**result_rouge, **result_brt_average_values}
-    #     return results
+    
     def _compute_metrics(self, predictions, labels):
-        ic("Shapes inside compute_metrics:")
-        ic(len(predictions), predictions[0].shape if len(predictions) > 0 else None)
-        ic(len(labels), labels[0].shape if len(labels) > 0 else None)
-        
-        # Ensure predictions and labels are in correct format
         predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
         labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
-
-        # Decode predictions and labels
-        # ic(predictions[0])
+        
         decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
-        ic(predictions[0])  # Text
-        ic(decoded_preds[0]) # Text or not?
         
-        # Convert predictions from logits to token IDs
-        # predictions = np.argmax(predictions, axis=-1)
-        
-        # Process labels
-        processed_labels = []
-        for label in labels:
-            label = label[label != -100]  # Remove padding
-            processed_labels.append(label)
+        processed_labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
         
         decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
-        ic(processed_labels[0])
-        ic(decoded_labels[0]) 
         
-        # Calculate metrics
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         
