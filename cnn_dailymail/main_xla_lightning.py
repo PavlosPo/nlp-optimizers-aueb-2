@@ -55,7 +55,7 @@ class T5SummarizationModule(pl.LightningModule):
         if predict_with_generate:
             outputs['sequences'] = self.model.generate(input_ids=input_ids, 
                                                        attention_mask=attention_mask, 
-                                                       max_length=self.generation_max_tokens)
+                                                       max_length=self.generation_max_tokens + 2)
         return outputs
         
     def training_step(self, batch, batch_idx):
