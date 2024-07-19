@@ -44,12 +44,14 @@ class T5SummarizationModule(pl.LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
+        self.register_buffer("sigma", torch.eye(3)) # Access self.sigma anywhere
         # self.train_loader = train_loader
         # self.val_loader = val_loader
         # self.test_loader = test_loader
         self.max_new_tokens = max_new_tokens
         self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         ic(self.device)
+        ic(self.sigma)
         self.bert_score = BERTScore(model_name_or_path='roberta-large', device=self.device, sync_on_compute=True)
         self.training_step_outputs = []
         self.valid_step_predictions = []
