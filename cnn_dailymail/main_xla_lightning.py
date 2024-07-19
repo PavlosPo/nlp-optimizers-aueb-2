@@ -41,7 +41,7 @@ class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", max_new_tokens=20):        
         super().__init__()
         # self.save_hyperparameters()
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
+        self.register_buffer("model", AutoModelForSeq2SeqLM.from_pretrained(model_name).train())
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
@@ -136,8 +136,8 @@ class T5SummarizationModule(pl.LightningModule):
         self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
     
     def _compute_metrics(self, predictions, labels):
-        predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
-        labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
+        # predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
+        # labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
         
         decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
         
