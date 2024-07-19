@@ -44,11 +44,11 @@ class T5SummarizationModule(pl.LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
-        self.register_buffer("sigma", torch.eye(3)) # Access self.sigma anywhere
+        # self.register_buffer("sigma", torch.eye(3)) # Access self.sigma anywhere
         self.max_new_tokens = max_new_tokens
         self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         ic(self.device)
-        ic(self.sigma)
+        # ic(self.sigma)
         # self.bert_score = BERTScore(model_name_or_path='roberta-large', sync_on_compute=True, max_length=self.max_new_tokens)
         # self.training_step_outputs = []
         # self.valid_step_predictions = []
@@ -161,18 +161,18 @@ class T5SummarizationModule(pl.LightningModule):
         return generations
         
     def _log_metrics(self, prefix, predictions, labels):
-        ic(f"Debug information for {prefix}_predictions:")
-        ic(len(predictions))
-        ic(type(predictions))
-        if len(predictions) > 0:
-            ic(type(predictions[0]))
-            ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
-        ic(f"Debug information for {prefix}_labels:")
-        ic(len(labels))
-        ic(type(labels))
-        if len(labels) > 0:
-            ic(type(labels[0]))
-            ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
+        # ic(f"Debug information for {prefix}_predictions:")
+        # ic(len(predictions))
+        # ic(type(predictions))
+        # if len(predictions) > 0:
+        #     ic(type(predictions[0]))
+        #     ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
+        # ic(f"Debug information for {prefix}_labels:")
+        # ic(len(labels))
+        # ic(type(labels))
+        # if len(labels) > 0:
+        #     ic(type(labels[0]))
+        #     ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
         metrics = self._compute_metrics(predictions, labels)
         self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
     
@@ -320,11 +320,12 @@ def main():
         max_epochs=epochs,
         logger=logger,
         callbacks=[checkpoint_callback],
-        log_every_n_steps=100,
+        log_every_n_steps=10,
         enable_checkpointing=True,
+        num_sanity_val_steps=0,
         accelerator='auto',
         devices='auto',
-        accumulate_grad_batches=16,
+        accumulate_grad_batches=32,
         # precision="1"
     )
 
