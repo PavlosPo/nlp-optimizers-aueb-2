@@ -236,9 +236,13 @@ def main():
     model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, optimizer_name=optimizer_name, max_new_tokens=max_length)
     
     # Compile the model for faster loading
-    model = torch.compile(model, options={"shape_padding": True}) # More memory but faster
+    # model = torch.compile(model, options={"shape_padding": True}) # More memory but faster
     
     data_module = T5SummarizationDataModule(
+        # The code is attempting to compile a model using the `torch` library with the option
+        # `shape_padding` set to `True`. This option is likely used to enable shape padding which can
+        # improve performance at the cost of using more memory. However, the code is commented out with
+        # `#`, so it is not currently being executed.
         model_name=model_name,
         dataset_name=dataset_name,
         max_length=max_length,
