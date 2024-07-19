@@ -60,9 +60,7 @@ class T5SummarizationModule(pl.LightningModule):
         return outputs
 
     def training_step(self, batch, batch_idx):
-        outputs = self(input_ids=batch["input_ids"],
-                             attention_mask=batch["attention_mask"],
-                             labels=batch["labels"])
+        outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
         loss = outputs['loss']
         # self.training_step_outputs.append(preds)
         self.log("train_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
@@ -87,8 +85,8 @@ class T5SummarizationModule(pl.LightningModule):
         all_preds = torch.stack(self.valid_step_predictions)
         all_labels = torch.stack(self.valid_step_labels)
         with torch.no_grad():
-            results = self._compute_metrics(preds=all_preds, labels=all_labels)
-            self.log_dict("val_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+            results = self._log_metrics(preds=all_preds, labels=all_labels)
+            # self.log_dict("val_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         self.training_step_outputs.clear()
         
     def test_step(self, batch, batch_idx):
@@ -107,16 +105,56 @@ class T5SummarizationModule(pl.LightningModule):
         all_preds = torch.stack(self.test_step_predictions)
         all_labels = torch.stack(self.test_step_labels)
         with torch.no_grad():
-            results = self._compute_metrics(preds=all_preds, labels=all_labels)
-            self.log_dict("test_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+            self._log_metrics(preds=all_preds, labels=all_labels)
+            # self.log_dict("test_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
             
-    def _compute_metrics(self, preds, labels):
-        decoded_preds = self.tokenizer.batch_decode(preds, skip_special_tokens=True)
-        labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
-        decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
-        result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
+    # def _compute_metrics(self, preds, labels):
+    #     decoded_preds = self.tokenizer.batch_decode(preds, skip_special_tokens=True)
+    #     labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
+    #     decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
+    #     result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
+    #     result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+    #     result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
+    #     results = {**result_rouge, **result_brt_average_values}
+    #     return results
+    
+    def _log_metrics(self, prefix, predictions, labels):
+        ic(f"Debug information for {prefix}_predictions:")
+        ic(len(predictions))
+        ic(type(predictions))
+        if len(predictions) > 0:
+            ic(type(predictions[0]))
+            ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
+        
+        ic(f"Debug information for {prefix}_labels:")
+        ic(len(labels))
+        ic(type(labels))
+        if len(labels) > 0:
+            ic(type(labels[0]))
+            ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
+
+        metrics = self._compute_metrics(predictions, labels)
+        self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
+
+    def _compute_metrics(self, predictions, labels):
+        ic("Shapes inside compute_metrics:")
+        ic(len(predictions), predictions[0].shape if predictions else None)
+        ic(len(labels), labels[0].shape if labels else None)
+        
+        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
+        
+        # Process labels
+        processed_labels = []
+        for label in labels:
+            label = label[label != -100]  # Remove padding
+            processed_labels.append(label)
+        
+        decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
+        
+        result_rouge = self.rouge(preds=decoded_preds, target=decoded_labels)
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
-        result_brt_average_values = {key: tensors.mean().item() for key, tensors in result_brt.items()}
+        
+        result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
         results = {**result_rouge, **result_brt_average_values}
         return results
     
