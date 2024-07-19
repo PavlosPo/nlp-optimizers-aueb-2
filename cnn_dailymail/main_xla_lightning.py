@@ -16,9 +16,6 @@ import numpy as np
 
 # Get xm device
 import torch_xla.core.xla_model as xm
-import torch_xla.distributed.xla_multiprocessing as xmp
-import torch_xla.distributed.parallel_loader as pl
-import torch_xla.distributed.xla_multiprocessing as xmp
 
 # Assign device
 def get_device():
