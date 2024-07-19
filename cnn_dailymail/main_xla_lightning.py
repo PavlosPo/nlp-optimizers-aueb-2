@@ -56,14 +56,13 @@ class T5SummarizationModule(pl.LightningModule):
     #     self._initialize_metrics()
     
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         if predict_with_generate:
-            outputs = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, max_new_tokens=self.max_new_tokens)
-        else:
-            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            outputs['sequences'] = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, max_new_tokens=self.max_new_tokens)
         return outputs
         
     def training_step(self, batch, batch_idx):
-        outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
+        outputs = self.forward(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
         loss = outputs['loss']
         ic(outputs.keys())
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
@@ -75,12 +74,10 @@ class T5SummarizationModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         self._initialize_metrics()
         with torch.no_grad():
-            outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"], predict_with_generate=True)
+            outputs = self.forward(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"], predict_with_generate=True)
             loss = outputs['loss']
             ic(outputs.keys())
-            generated_ids = outputs['sequences']
-            # generated_ids = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
-            self.valid_step_outputs.append((generated_ids, batch["labels"]))
+            self.valid_step_outputs.append((outputs['sequences'], batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
     
@@ -242,7 +239,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         
 def main():
     pl.seed_everything(seed_num)
-    model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, optimizer_name=optimizer_name, max_new_tokens=max_length)
+    model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, optimizer_name=optimizer_name)
     
     # Compile the model for faster loading
     # model = torch.compile(model, options={"shape_padding": True}) # More memory but faster
