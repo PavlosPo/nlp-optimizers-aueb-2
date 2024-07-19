@@ -48,7 +48,7 @@ class T5SummarizationModule(pl.LightningModule):
         self.max_new_tokens = max_new_tokens
         self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         ic(self.device)
-        self.bert_score = BERTScore(model_name_or_path='roberta-large', sync_on_compute=True, max_length=self.max_new_tokens)
+        self.bert_score = BERTScore(model_name_or_path='microsoft/deberta-xlarge-mnli', sync_on_compute=True, max_length=self.max_new_tokens)
         self.valid_step_outputs = []
         self.test_step_outputs = []
 
@@ -253,7 +253,7 @@ def main():
         enable_checkpointing=True,
         # num_sanity_val_steps=0,
         accelerator='tpu',
-        devices=1,
+        devices='auto',
         accumulate_grad_batches=16,
         # precision="1"
     )
