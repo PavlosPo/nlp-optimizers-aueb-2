@@ -49,7 +49,7 @@ class T5SummarizationModule(pl.LightningModule):
         self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         ic(self.device)
         ic(self.sigma)
-        self.bert_score = BERTScore(model_name_or_path='roberta-large', sync_on_compute=True, max_length=self.max_new_tokens)
+        # self.bert_score = BERTScore(model_name_or_path='roberta-large', sync_on_compute=True, max_length=self.max_new_tokens)
         # self.training_step_outputs = []
         # self.valid_step_predictions = []
         # self.valid_step_labels = []
@@ -161,18 +161,18 @@ class T5SummarizationModule(pl.LightningModule):
         return generations
         
     def _log_metrics(self, prefix, predictions, labels):
-        # ic(f"Debug information for {prefix}_predictions:")
-        # ic(len(predictions))
-        # ic(type(predictions))
-        # if len(predictions) > 0:
-        #     ic(type(predictions[0]))
-        #     ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
-        # ic(f"Debug information for {prefix}_labels:")
-        # ic(len(labels))
-        # ic(type(labels))
-        # if len(labels) > 0:
-        #     ic(type(labels[0]))
-        #     ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
+        ic(f"Debug information for {prefix}_predictions:")
+        ic(len(predictions))
+        ic(type(predictions))
+        if len(predictions) > 0:
+            ic(type(predictions[0]))
+            ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
+        ic(f"Debug information for {prefix}_labels:")
+        ic(len(labels))
+        ic(type(labels))
+        if len(labels) > 0:
+            ic(type(labels[0]))
+            ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
         metrics = self._compute_metrics(predictions, labels)
         self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
     
@@ -187,11 +187,12 @@ class T5SummarizationModule(pl.LightningModule):
         decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
         
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
-        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+        # result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         
-        result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-        results = {**result_rouge, **result_brt_average_values}
-        return results
+        # result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
+        # results = {**result_rouge, **result_brt_average_values}
+        # return results
+        return result_rouge
     
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
