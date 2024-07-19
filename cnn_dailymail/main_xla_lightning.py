@@ -58,7 +58,7 @@ class T5SummarizationModule(pl.LightningModule):
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         if predict_with_generate:
-            outputs['sequences'] = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, max_new_tokens=self.max_new_tokens)
+            outputs['sequences'] = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, max_length=self.max_new_tokens)
         return outputs
         
     def training_step(self, batch, batch_idx):
@@ -193,7 +193,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
     def setup(self, stage):
         # Setting up the data, called on every GPU/TPU in DDP
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
+        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer)
 
         # Load and preprocess the dataset
         dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
@@ -227,13 +227,13 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         return model_inputs
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True, num_workers=239, drop_last=True)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True, drop_last=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, num_workers=239, drop_last=True)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, num_workers=239, drop_last=True)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
 
     
         
