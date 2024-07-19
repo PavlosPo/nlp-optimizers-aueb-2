@@ -52,8 +52,8 @@ class T5SummarizationModule(pl.LightningModule):
         self.valid_step_outputs = []
         self.test_step_outputs = []
 
-    def on_train_start(self, trainer, pl_module):
-        self._initialize_metrics()
+    # def on_train_start(self, trainer, pl_module):
+    #     self._initialize_metrics()
     
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -69,7 +69,7 @@ class T5SummarizationModule(pl.LightningModule):
         pass
     
     def validation_step(self, batch, batch_idx):
-        # self._initialize_metrics()
+        self._initialize_metrics()
         with torch.no_grad():
             outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
             loss = outputs['loss']
@@ -83,9 +83,9 @@ class T5SummarizationModule(pl.LightningModule):
             print("Loading ROUGEScore..")
             self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         if not hasattr(self, "bert_score"):
-            print("Loading BERTScore..")
-            ic(self.device)
-            self.bert_score = BERTScore(model_name_or_path='distilbert-base-uncased', model=self.model, user_tokenizer=self.tokenizer, sync_on_compute=True, max_length=self.max_new_tokens, device=self.device, force_download=True)
+            print("Not Loading BERTScore..")
+            # ic(self.device)
+            # self.bert_score = BERTScore(model_name_or_path='distilbert-base-uncased', model=self.model, user_tokenizer=self.tokenizer, sync_on_compute=True, max_length=self.max_new_tokens, device=self.device, force_download=True)
 
     def on_validation_epoch_end(self):
         self._eval_epoch_end(self.valid_step_outputs, "val")
