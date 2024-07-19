@@ -42,7 +42,7 @@ class T5SummarizationModule(pl.LightningModule):
         super().__init__()
         # self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
-        self.model = torch.compile(self.model, options={"shape_padding": True}) # More memory but faster, Also compile in DDP fixes a lot of things.
+        self.model = torch.compile(self.model) # More memory but faster, Also compile in DDP fixes a lot of things.
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
