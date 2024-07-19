@@ -40,27 +40,28 @@ batch_size = args.batch_size
 class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", generation_max_tokens=20):        
         super().__init__()
-        # self.save_hyperparameters()
+        self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
-        # self.max_new_tokens = max_new_tokens
         self.generation_max_tokens = generation_max_tokens
-        ic(self.device)
-        # I can use self.device but will not work on __init__ method. I will Initialize it later.
-        # self.bert_score = BERTScore(model_name_or_path='microsoft/deberta-xlarge-mnli', sync_on_compute=True, max_length=self.max_new_tokens)
         self.valid_step_outputs = []
         self.test_step_outputs = []
+        self.bert_score_model_to_use = 'distilbert-base-uncased'
 
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         if predict_with_generate:
-            outputs['sequences'] = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, max_length=self.generation_max_tokens)
+            outputs['sequences'] = self.model.generate(input_ids=input_ids, 
+                                                       attention_mask=attention_mask, 
+                                                       max_length=self.generation_max_tokens)
         return outputs
         
     def training_step(self, batch, batch_idx):
-        outputs = self.forward(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
+        outputs = self.forward(input_ids=batch["input_ids"], 
+                               attention_mask=batch["attention_mask"], 
+                               labels=batch["labels"])
         loss = outputs['loss']
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
@@ -69,9 +70,11 @@ class T5SummarizationModule(pl.LightningModule):
         pass
     
     def validation_step(self, batch, batch_idx):
-        self._initialize_metrics()
         with torch.no_grad():
-            outputs = self.forward(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"], predict_with_generate=True)
+            outputs = self.forward(input_ids=batch["input_ids"],
+                                   attention_mask=batch["attention_mask"],
+                                   labels=batch["labels"],
+                                   predict_with_generate=True)
             loss = outputs['loss']
             self.valid_step_outputs.append((outputs['sequences'], batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
@@ -81,15 +84,21 @@ class T5SummarizationModule(pl.LightningModule):
         if not hasattr(self, "rouge_score"):
             self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         if not hasattr(self, "bert_score"):
-            self.bert_score = BERTScore(model_name_or_path='distilbert-base-uncased', model=self.model, user_tokenizer=self.tokenizer, max_length=self.generation_max_tokens, sync_on_compute=True, device=self.device)
+            self.bert_score = BERTScore(model_name_or_path=self.bert_score_model_to_use,
+                                        max_length=self.generation_max_tokens,
+                                        sync_on_compute=True, device=self.device)
 
     def on_validation_epoch_end(self):
+        self._initialize_metrics()
         self._eval_epoch_end(self.valid_step_outputs, "val")
         self.valid_step_outputs.clear()
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
-            outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"], predict_with_generate=True)
+            outputs = self(input_ids=batch["input_ids"], 
+                           attention_mask=batch["attention_mask"], 
+                           labels=batch["labels"], 
+                           predict_with_generate=True)
             loss = outputs['loss']
             self.test_step_outputs.append((outputs['sequences'], batch["labels"]))
             self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
@@ -126,7 +135,8 @@ class T5SummarizationModule(pl.LightningModule):
         #     ic(type(labels[0]))
         #     ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
         metrics = self._compute_metrics(predictions, labels)
-        self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
+        self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, 
+                      on_step=False, on_epoch=True, sync_dist=True)
     
     def _compute_metrics(self, predictions, labels):
         predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
@@ -161,7 +171,8 @@ class T5SummarizationModule(pl.LightningModule):
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
         
 class T5SummarizationDataModule(pl.LightningDataModule):
-    def __init__(self, model_name, dataset_name, max_length, batch_size, train_range, val_range, test_range, seed_num):
+    def __init__(self, model_name, dataset_name, max_length, 
+                 batch_size, train_range, val_range, test_range, seed_num):
         super().__init__()
         self.model_name = model_name
         self.dataset_name = dataset_name
@@ -213,8 +224,10 @@ class T5SummarizationDataModule(pl.LightningDataModule):
     def _preprocess_function(self, examples):
         prefix = "summarize: "
         inputs = [prefix + doc for doc in examples["article"]]
-        model_inputs = self.tokenizer(inputs, padding="max_length", truncation=True, max_length=self.max_length)
-        labels = self.tokenizer(text_target=examples["highlights"], padding="max_length", truncation=True, max_length=self.max_length)
+        model_inputs = self.tokenizer(inputs, padding="max_length", 
+                                      truncation=True, max_length=self.max_length)
+        labels = self.tokenizer(text_target=examples["highlights"], 
+                                padding="max_length", truncation=True, max_length=self.max_length)
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
 
@@ -231,7 +244,8 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         
 def main():
     pl.seed_everything(seed_num)
-    model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, optimizer_name=optimizer_name)
+    model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, 
+                                  optimizer_name=optimizer_name)
     data_module = T5SummarizationDataModule(
         model_name=model_name,
         dataset_name=dataset_name,
