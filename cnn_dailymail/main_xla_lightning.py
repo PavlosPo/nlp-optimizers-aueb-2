@@ -157,7 +157,7 @@ class T5SummarizationModule(pl.LightningModule):
         with torch.no_grad:
             generations = self.generate(input_ids=batch["input_ids"],
                                     attention_mask=batch["attention_mask"],
-                                    labels=batch["labels"])
+                                    labels=batch["labels"], max_new_tokens=self.max_new_tokens)
         return generations
         
     def _log_metrics(self, prefix, predictions, labels):
