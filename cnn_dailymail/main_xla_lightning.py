@@ -223,7 +223,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         
 def main():
     pl.seed_everything(seed_num)
-    model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, optimizer_name=optimizer_name)
+    model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, optimizer_name=optimizer_name, max_new_tokens=max_length)
     data_module = T5SummarizationDataModule(
         model_name=model_name,
         dataset_name=dataset_name,
