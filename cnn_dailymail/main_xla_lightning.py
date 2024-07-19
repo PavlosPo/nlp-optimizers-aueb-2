@@ -52,7 +52,7 @@ class T5SummarizationModule(pl.LightningModule):
         self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         ic(self.device)
         ic(self.sigma)
-        self.bert_score = BERTScore(model_name_or_path='roberta-large', device=self.device, sync_on_compute=True)
+        self.bert_score = BERTScore(model_name_or_path='roberta-large', device=self.device, sync_on_compute=True, max_length=self.max_new_tokens)
         self.training_step_outputs = []
         self.valid_step_predictions = []
         self.valid_step_labels = []
@@ -213,7 +213,7 @@ class T5SummarizationModule(pl.LightningModule):
         
         # Calculate metrics
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
-        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels, max_length=self.max_new_tokens)
+        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         
         result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
         results = {**result_rouge, **result_brt_average_values}
