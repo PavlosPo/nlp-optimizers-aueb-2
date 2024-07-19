@@ -12,7 +12,7 @@ import os
 import argparse
 from icecream import ic
 import numpy as np
-import time 
+# import time 
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
@@ -244,7 +244,7 @@ def main():
         mode='min'
     )
     # Get the start of time
-    start = time.time()
+    # start = time.time()
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=logger,
@@ -260,10 +260,10 @@ def main():
     trainer.fit(model, datamodule=data_module)
     test_results = trainer.test(model, datamodule=data_module)
     # Get the last time
-    end = time.time()
+    # end = time.time()
     # Get the total time in seconds
-    total_time = end - start
-    print(f"Total time: {total_time}")
+    # total_time = end - start
+    # print(f"Total time: {total_time}")
     os.makedirs(output_dir, exist_ok=True)
     with open(f"{output_dir}/results_with_seed_{seed_num}.txt", "w") as f:
         f.write(f"Seed: {seed_num}\n")
@@ -274,7 +274,7 @@ def main():
         f.write(f'Test range: {test_range}\n')
         f.write(f'Validation range: {val_range}\n')
         f.write(f'Learning rate: {learning_rate}\n')
-        f.write(f'Time Completion: {round(total_time, 2)} Seconds\n')
+        # f.write(f'Time Completion: {round(total_time, 2)} Seconds\n')
         f.write("\nBest checkpoint:\n")
         f.write(f"{checkpoint_callback.best_model_path}\n")
         f.write("\nTest results:\n")
