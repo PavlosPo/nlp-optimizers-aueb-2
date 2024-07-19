@@ -62,6 +62,7 @@ class T5SummarizationModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
         loss = outputs['loss']
+        ic(outputs.keys())
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
@@ -73,6 +74,7 @@ class T5SummarizationModule(pl.LightningModule):
         with torch.no_grad():
             outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
             loss = outputs['loss']
+            ic(outputs.keys())
             generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
             self.valid_step_outputs.append((generated_ids, batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
