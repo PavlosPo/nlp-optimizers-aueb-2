@@ -58,7 +58,7 @@ class T5SummarizationModule(pl.LightningModule):
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         if predict_with_generate:
-            outputs['sequences'] = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, max_length=self.max_new_tokens)
+            outputs['sequences'] = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, max_length=20)
         return outputs
         
     def training_step(self, batch, batch_idx):
@@ -96,10 +96,9 @@ class T5SummarizationModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
-            outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
+            outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"], predict_with_generate=True)
             loss = outputs['loss']
-            generated_ids = self.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
-            self.test_step_outputs.append((generated_ids, batch["labels"]))
+            self.test_step_outputs.append((outputs['sequences'], batch["labels"]))
             self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
