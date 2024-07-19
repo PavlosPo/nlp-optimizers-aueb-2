@@ -85,7 +85,7 @@ class T5SummarizationModule(pl.LightningModule):
         all_preds = torch.stack(self.valid_step_predictions)
         all_labels = torch.stack(self.valid_step_labels)
         with torch.no_grad():
-            results = self._log_metrics(predictions=all_preds, labels=all_labels)
+            results = self._log_metrics(prefix="val", predictions=all_preds, labels=all_labels)
             # self.log_dict("val_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         self.training_step_outputs.clear()
         
@@ -105,7 +105,7 @@ class T5SummarizationModule(pl.LightningModule):
         all_preds = torch.stack(self.test_step_predictions)
         all_labels = torch.stack(self.test_step_labels)
         with torch.no_grad():
-            self._log_metrics(predictions=all_preds, labels=all_labels)
+            self._log_metrics(prefix="test", predictions=all_preds, labels=all_labels)
             # self.log_dict("test_" + results, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
             
     # def _compute_metrics(self, preds, labels):
