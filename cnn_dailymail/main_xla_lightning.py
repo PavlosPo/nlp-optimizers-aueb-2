@@ -75,7 +75,7 @@ class T5SummarizationModule(pl.LightningModule):
             outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
             loss = outputs['loss']
             ic(outputs.keys())
-            generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
+            generated_ids = self.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
             self.valid_step_outputs.append((generated_ids, batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
@@ -97,7 +97,7 @@ class T5SummarizationModule(pl.LightningModule):
         with torch.no_grad():
             outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
             loss = outputs['loss']
-            generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
+            generated_ids = self.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
             self.test_step_outputs.append((generated_ids, batch["labels"]))
             self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
