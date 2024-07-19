@@ -37,18 +37,20 @@ learning_rate = 9.9879589111261e-06
 batch_size = args.batch_size
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw", train_loader=None, val_loader=None, test_loader=None):        
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw", max_new_tokens=20):        
         super().__init__()
         # self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
-        self.train_loader = train_loader
-        self.val_loader = val_loader
-        self.test_loader = test_loader
-        self.rouge_score = ROUGEScore(use_stemmer=True)
-        self.bert_score = BERTScore(model_name_or_path='roberta-large')
+        # self.train_loader = train_loader
+        # self.val_loader = val_loader
+        # self.test_loader = test_loader
+        self.max_new_tokens = max_new_tokens
+        self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
+        ic(self.device)
+        self.bert_score = BERTScore(model_name_or_path='roberta-large', device=self.device, sync_on_compute=True)
         self.training_step_outputs = []
         self.valid_step_predictions = []
         self.valid_step_labels = []
@@ -74,7 +76,7 @@ class T5SummarizationModule(pl.LightningModule):
                                 attention_mask=batch["attention_mask"],
                                 labels=batch["labels"])
             loss = outputs['loss']
-            generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+            generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
             self.valid_step_predictions.append(generated_ids)
             self.valid_step_labels.append(batch["labels"])
             self.log("val_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
@@ -96,7 +98,7 @@ class T5SummarizationModule(pl.LightningModule):
                                 attention_mask=batch["attention_mask"],
                                 labels=batch["labels"])
             loss = outputs['loss']
-            generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+            generated_ids = self.model.generate(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], max_new_tokens=self.max_new_tokens)
             self.test_step_predictions.append(generated_ids)
             self.test_step_labels.append(batch["labels"])
             self.log("test_loss", loss.item(), on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
@@ -189,7 +191,10 @@ class T5SummarizationModule(pl.LightningModule):
         labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
 
         # Decode predictions and labels
+        # ic(predictions[0])
         decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
+        ic(predictions[0])  # Text
+        ic(decoded_preds[0]) # Text or not?
         
         # Convert predictions from logits to token IDs
         # predictions = np.argmax(predictions, axis=-1)
@@ -201,10 +206,12 @@ class T5SummarizationModule(pl.LightningModule):
             processed_labels.append(label)
         
         decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
+        ic(processed_labels[0])
+        ic(decoded_labels[0]) 
         
         # Calculate metrics
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
-        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels, max_length=self.max_new_tokens)
         
         result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
         results = {**result_rouge, **result_brt_average_values}
