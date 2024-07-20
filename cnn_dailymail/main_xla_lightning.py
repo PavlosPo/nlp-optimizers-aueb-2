@@ -53,9 +53,10 @@ class T5SummarizationModule(pl.LightningModule):
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         if predict_with_generate:
-            outputs['sequences'] = self.model.generate(input_ids=input_ids, 
+            generated = self.model.generate(input_ids=input_ids, 
                                                        attention_mask=attention_mask, 
                                                        max_length=self.generation_max_tokens + 2)
+            outputs['sequences'] = generated.view(input_ids.shape[0], -1)  # Reshape to match input shape
         return outputs
         
     def training_step(self, batch, batch_idx):
@@ -76,8 +77,11 @@ class T5SummarizationModule(pl.LightningModule):
                                    labels=batch["labels"],
                                    predict_with_generate=True)
             loss = outputs['loss']
-            ic(outputs['sequences'])
-            self.valid_step_outputs.append((outputs['sequences'], batch["labels"]))
+            # ic(outputs['sequences'])
+            ic(batch["labels"])
+            generated_seq = outputs['sequences'].view(-1, outputs['sequences'].size(-1))  # Flatten if needed
+            ic(generated_seq)
+            self.valid_step_outputs.append((generated_seq, batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
     
@@ -96,7 +100,7 @@ class T5SummarizationModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
-            outputs = self(input_ids=batch["input_ids"], 
+            outputs = self.forward(input_ids=batch["input_ids"], 
                            attention_mask=batch["attention_mask"], 
                            labels=batch["labels"], 
                            predict_with_generate=True)
@@ -140,6 +144,12 @@ class T5SummarizationModule(pl.LightningModule):
                       on_step=False, on_epoch=True, sync_dist=True)
     
     def _compute_metrics(self, predictions, labels):
+        
+        if isinstance(predictions, list):
+           predictions = torch.cat(predictions, dim=0)
+        if isinstance(labels, list):
+            labels = torch.cat(labels, dim=0)
+        
         predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
         labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
         
