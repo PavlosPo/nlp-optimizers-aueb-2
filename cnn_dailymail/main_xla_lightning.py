@@ -90,7 +90,6 @@ class T5SummarizationModule(pl.LightningModule):
             self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         if not hasattr(self, "bert_score"):
             self.bert_score = BERTScore(model_name_or_path=self.bert_score_model_to_use,
-                                        max_length=self.generation_max_tokens,
                                         sync_on_compute=True, device=self.device)
 
     def on_validation_epoch_end(self):
@@ -207,7 +206,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
     def setup(self, stage):
         # Setting up the data, called on every GPU/TPU in DDP
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer)
+        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
 
         # Load and preprocess the dataset
         dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
