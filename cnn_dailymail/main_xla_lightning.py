@@ -29,10 +29,10 @@ dataset_name = "cnn_dailymail"
 seed_num = args.seed
 max_length = 512
 output_dir = f"{optimizer_name}/{dataset_name}/best_{model_name.split('/')[-1]}"
-train_range = 15000
-test_range = 1500
-val_range = 1500
-epochs = 4
+train_range = 4 * 15000
+test_range = 4 * 1500
+val_range = 4 * 1500
+epochs = 4 * 4
 learning_rate = 9.9879589111261e-06
 batch_size = args.batch_size
 
@@ -47,7 +47,7 @@ class T5SummarizationModule(pl.LightningModule):
         self.generation_max_tokens = generation_max_tokens
         self.valid_step_outputs = []
         self.test_step_outputs = []
-        self.bert_score_model_to_use = 'distilbert-base-uncased'
+        self.bert_score_model_to_use = 'microsoft/deberta-xlarge-mnli' # Current Best Model closest to Human Evaluation
 
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
