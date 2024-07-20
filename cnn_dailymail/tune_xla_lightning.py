@@ -9,6 +9,7 @@ from datasets import load_dataset
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
 import optuna
+from optuna.integration import PyTorchLightningPruningCallback
 from optuna.storages import RDBStorage
 import os
 import argparse
@@ -232,7 +233,7 @@ def objective(trial):
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=logger,
-        callbacks=[checkpoint_callback],
+        callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
         log_every_n_steps=10,
         enable_checkpointing=True,
         num_sanity_val_steps=0,
@@ -240,11 +241,13 @@ def objective(trial):
         devices='auto',
         accumulate_grad_batches=16,
     )
-    
+    hyperparameters = dict(learning_rate=learning_rate)
+    trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
     
     # Return the best validation loss as the objective value
-    return trainer.checkpoint_callback.best_model_score
+    # TODO: Fix the returned value
+    return trainer.callback_metrics["val_acc"].item()
 
 
 def main():
@@ -252,7 +255,8 @@ def main():
     storage = RDBStorage(url='sqlite:///optuna_study.db')
     
     # Create or load the study
-    study = optuna.create_study(direction="minimize", storage=storage, study_name="t5_summarization_study", load_if_exists=True)
+    study = optuna.create_study(direction="minimize", storage=storage, study_name="t5_summarization_study", 
+                                load_if_exists=True, pruner=optuna.pruners.MedianPruner())
     study.optimize(objective, n_trials=6)  # Adjust n_trials as needed
     
     print("Best trial:")
