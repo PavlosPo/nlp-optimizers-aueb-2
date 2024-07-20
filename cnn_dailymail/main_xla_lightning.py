@@ -76,6 +76,7 @@ class T5SummarizationModule(pl.LightningModule):
                                    labels=batch["labels"],
                                    predict_with_generate=True)
             loss = outputs['loss']
+            ic(outputs['sequences'])
             self.valid_step_outputs.append((outputs['sequences'], batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
@@ -122,18 +123,18 @@ class T5SummarizationModule(pl.LightningModule):
     #     return generations
         
     def _log_metrics(self, prefix, predictions, labels):
-        # ic(f"Debug information for {prefix}_predictions:")
-        # ic(len(predictions))
-        # ic(type(predictions))
-        # if len(predictions) > 0:
-        #     ic(type(predictions[0]))
-        #     ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
-        # ic(f"Debug information for {prefix}_labels:")
-        # ic(len(labels))
-        # ic(type(labels))
-        # if len(labels) > 0:
-        #     ic(type(labels[0]))
-        #     ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
+        ic(f"Debug information for {prefix}_predictions:")
+        ic(len(predictions))
+        ic(type(predictions))
+        if len(predictions) > 0:
+            ic(type(predictions[0]))
+            ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
+        ic(f"Debug information for {prefix}_labels:")
+        ic(len(labels))
+        ic(type(labels))
+        if len(labels) > 0:
+            ic(type(labels[0]))
+            ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
         metrics = self._compute_metrics(predictions, labels)
         self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, 
                       on_step=False, on_epoch=True, sync_dist=True)
