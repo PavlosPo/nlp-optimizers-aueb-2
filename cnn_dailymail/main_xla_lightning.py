@@ -1,5 +1,5 @@
 import torch
-# import pytorch_lightning as pl
+import pickle
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -12,7 +12,6 @@ import os
 import argparse
 from icecream import ic
 import numpy as np
-# import time
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
@@ -77,10 +76,7 @@ class T5SummarizationModule(pl.LightningModule):
                                    labels=batch["labels"],
                                    predict_with_generate=True)
             loss = outputs['loss']
-            # ic(outputs['sequences'])
-            ic(batch["labels"])
             generated_seq = outputs['sequences'].view(-1, outputs['sequences'].size(-1))  # Flatten if needed
-            ic(generated_seq)
             self.valid_step_outputs.append((generated_seq, batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
@@ -103,12 +99,14 @@ class T5SummarizationModule(pl.LightningModule):
                            attention_mask=batch["attention_mask"], 
                            labels=batch["labels"], 
                            predict_with_generate=True)
+            generated_seq = outputs['sequences'].view(-1, outputs['sequences'].size(-1))  # Flatten if needed
             loss = outputs['loss']
-            self.test_step_outputs.append((outputs['sequences'], batch["labels"]))
+            self.test_step_outputs.append((generated_seq, batch["labels"]))
             self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
     def on_test_epoch_end(self):
+        self._initialize_metrics()
         self._eval_epoch_end(self.test_step_outputs, "test")
         self.test_step_outputs.clear()
         
@@ -118,26 +116,7 @@ class T5SummarizationModule(pl.LightningModule):
         with torch.no_grad():
             self._log_metrics(prefix, all_preds, all_labels)
         
-    # def predict_step(self, batch, batch_idx, dataloader_idx=0):
-    #     with torch.no_grad:
-    #         generations = self.generate(input_ids=batch["input_ids"],
-    #                                 attention_mask=batch["attention_mask"],
-    #                                 labels=batch["labels"], max_new_tokens=self.max_new_tokens)
-    #     return generations
-        
     def _log_metrics(self, prefix, predictions, labels):
-        ic(f"Debug information for {prefix}_predictions:")
-        ic(len(predictions))
-        ic(type(predictions))
-        if len(predictions) > 0:
-            ic(type(predictions[0]))
-            ic(predictions[0].shape if hasattr(predictions[0], 'shape') else None)
-        ic(f"Debug information for {prefix}_labels:")
-        ic(len(labels))
-        ic(type(labels))
-        if len(labels) > 0:
-            ic(type(labels[0]))
-            ic(labels[0].shape if hasattr(labels[0], 'shape') else None)
         metrics = self._compute_metrics(predictions, labels)
         self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, 
                       on_step=False, on_epoch=True, sync_dist=True)
@@ -151,20 +130,15 @@ class T5SummarizationModule(pl.LightningModule):
         
         predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
         labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
-        
-        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
-        
+
+        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)        
         processed_labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
-        
         decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
-        
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
-        
         result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
         results = {**result_rouge, **result_brt_average_values}
         return results
-        # return result_rouge
     
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
@@ -197,6 +171,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None
+        self.cache_dir = f"./dataset_cache_{self.seed_num}"
 
     def prepare_data(self):
         # Downloading data, called only once on 1 GPU/TPU in distributed settings
@@ -207,22 +182,41 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         # Setting up the data, called on every GPU/TPU in DDP
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
-
+        
         # Load and preprocess the dataset
+        if stage == 'fit' or stage is None:
+            self.train_dataset = self._get_or_process_dataset('train')
+            self.val_dataset = self._get_or_process_dataset('val')
+        if stage == 'test' or stage is None:
+            self.test_dataset = self._get_or_process_dataset('test')
+            
+    def _get_or_process_dataset(self, split):
+        cache_file = os.path.join(self.cache_dir, f"{split}_{self.seed_num}.pkl")
+        
+        if os.path.exists(cache_file):
+            print(f"Loading cached {split} dataset...")
+            with open(cache_file, 'rb') as f:
+                return pickle.load(f)
+        
+        print(f"Processing {split} dataset...")
         dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
         
-        if stage == 'fit' or stage is None:
-            train = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
-            self.train_dataset = self._preprocess_dataset(train)
-
+        if split == 'train':
+            data = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
+        elif split in ['val', 'test']:
             temp = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
-            val = temp['train'].select(range(min(self.val_range, len(temp['train']))))
-            self.val_dataset = self._preprocess_dataset(val)
-
-        if stage == 'test' or stage is None:
-            temp = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
-            test = temp['test'].select(range(min(self.test_range, len(temp['test']))))
-            self.test_dataset = self._preprocess_dataset(test)
+            if split == 'val':
+                data = temp['train'].select(range(min(self.val_range, len(temp['train']))))
+            else:
+                data = temp['test'].select(range(min(self.test_range, len(temp['test']))))
+        
+        processed_dataset = self._preprocess_dataset(data)
+        
+        os.makedirs(self.cache_dir, exist_ok=True)
+        with open(cache_file, 'wb') as f:
+            pickle.dump(processed_dataset, f)
+        
+        return processed_dataset
     
     def _preprocess_dataset(self, dataset):
         return dataset.map(
@@ -275,8 +269,6 @@ def main():
         monitor='val_loss',
         mode='min'
     )
-    # Get the start of time
-    # start = time.time()
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=logger,
@@ -291,11 +283,6 @@ def main():
     )
     trainer.fit(model, datamodule=data_module)
     test_results = trainer.test(model, datamodule=data_module)
-    # Get the last time
-    # end = time.time()
-    # Get the total time in seconds
-    # total_time = end - start
-    # print(f"Total time: {total_time}")
     os.makedirs(output_dir, exist_ok=True)
     with open(f"{output_dir}/results_with_seed_{seed_num}.txt", "w") as f:
         f.write(f"Seed: {seed_num}\n")
