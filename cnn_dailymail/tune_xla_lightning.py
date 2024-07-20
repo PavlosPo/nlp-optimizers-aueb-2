@@ -73,7 +73,7 @@ class T5SummarizationModule(pl.LightningModule):
                                    attention_mask=batch["attention_mask"],
                                    labels=batch["labels"])
             loss = outputs['loss']
-            self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -82,7 +82,7 @@ class T5SummarizationModule(pl.LightningModule):
                            attention_mask=batch["attention_mask"], 
                            labels=batch["labels"])
             loss = outputs['loss']
-            self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
         
     def _log_metrics(self, prefix, predictions, labels):
@@ -256,8 +256,8 @@ def main():
     
     # Create or load the study
     study = optuna.create_study(direction="minimize", storage=storage, study_name="t5_summarization_study", 
-                                load_if_exists=True, pruner=optuna.pruners.MedianPruner())
-    study.optimize(objective, n_trials=6)  # Adjust n_trials as needed
+                                load_if_exists=False, pruner=optuna.pruners.MedianPruner())
+    study.optimize(objective, n_trials=3)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
