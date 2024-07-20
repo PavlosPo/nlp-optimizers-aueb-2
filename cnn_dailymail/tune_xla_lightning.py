@@ -31,10 +31,10 @@ dataset_name = "cnn_dailymail"
 seed_num = args.seed
 max_length = 512
 output_dir = f"{optimizer_name}/{dataset_name}/best_{model_name.split('/')[-1]}"
-train_range = 4 * 15000
-test_range = 4 * 1500
-val_range = 4 * 1500
-epochs = 4 * 4
+train_range = 15000
+test_range = 1500
+val_range = 1500
+epochs = 4 
 learning_rate = 9.9879589111261e-06
 batch_size = args.batch_size
 
@@ -253,7 +253,7 @@ def main():
     
     # Create or load the study
     study = optuna.create_study(direction="minimize", storage=storage, study_name="t5_summarization_study", load_if_exists=True)
-    study.optimize(objective, n_trials=30)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=6)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
