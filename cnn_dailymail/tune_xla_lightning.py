@@ -35,7 +35,7 @@ output_dir = f"{optimizer_name}/{dataset_name}/best_{model_name.split('/')[-1]}"
 train_range = 15000
 test_range = 1500
 val_range = 1500
-epochs = 4 
+epochs = 2
 learning_rate = 9.9879589111261e-06
 batch_size = args.batch_size
 
@@ -247,7 +247,7 @@ def objective(trial):
     
     # Return the best validation loss as the objective value
     # TODO: Fix the returned value
-    return trainer.callback_metrics["val_acc"].item()
+    return trainer.callback_metrics["val_loss"].item()
 
 
 def main():
