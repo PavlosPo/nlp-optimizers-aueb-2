@@ -8,6 +8,8 @@ from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoToke
 from datasets import load_dataset
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
+import optuna
+from optuna.storages import RDBStorage
 import os
 import argparse
 from icecream import ic
@@ -49,13 +51,8 @@ class T5SummarizationModule(pl.LightningModule):
         self.test_step_outputs = []
         self.bert_score_model_to_use = 'microsoft/deberta-xlarge-mnli' # Current Best Model closest to Human Evaluation
 
-    def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
+    def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-        # if predict_with_generate:
-        #     generated = self.model.generate(input_ids=input_ids, 
-        #                                                attention_mask=attention_mask, 
-        #                                                max_length=self.generation_max_tokens + 2)
-        #     outputs['sequences'] = generated.view(input_ids.shape[0], -1)  # Reshape to match input shape
         return outputs
         
     def training_step(self, batch, batch_idx):
@@ -73,73 +70,24 @@ class T5SummarizationModule(pl.LightningModule):
         with torch.no_grad():
             outputs = self.forward(input_ids=batch["input_ids"],
                                    attention_mask=batch["attention_mask"],
-                                   labels=batch["labels"],
-                                   predict_with_generate=True)
+                                   labels=batch["labels"])
             loss = outputs['loss']
-            # generated_seq = outputs['sequences'].view(-1, outputs['sequences'].size(-1))  # Flatten if needed
-            # self.valid_step_outputs.append((generated_seq, batch["labels"]))
             self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
-    
-    # def _initialize_metrics(self):
-    #     if not hasattr(self, "rouge_score"):
-    #         self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
-    #     if not hasattr(self, "bert_score"):
-    #         self.bert_score = BERTScore(model_name_or_path=self.bert_score_model_to_use,
-    #                                     sync_on_compute=True, device=self.device)
-
-    def on_validation_epoch_end(self):
-        # self._initialize_metrics()
-        # self._eval_epoch_end(self.valid_step_outputs, "val")
-        # self.valid_step_outputs.clear()
-        pass
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
             outputs = self.forward(input_ids=batch["input_ids"], 
                            attention_mask=batch["attention_mask"], 
-                           labels=batch["labels"], 
-                           predict_with_generate=True)
-            # generated_seq = outputs['sequences'].view(-1, outputs['sequences'].size(-1))  # Flatten if needed
+                           labels=batch["labels"])
             loss = outputs['loss']
-            # self.test_step_outputs.append((generated_seq, batch["labels"]))
             self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
-
-    def on_test_epoch_end(self):
-        # self._initialize_metrics()
-        # self._eval_epoch_end(self.test_step_outputs, "test")
-        # self.test_step_outputs.clear()
-        pass
-    # def _eval_epoch_end(self, outputs, prefix):
-    #     all_preds = torch.cat([x[0] for x in outputs], dim=0)
-    #     all_labels = torch.cat([x[1] for x in outputs], dim=0)
-    #     with torch.no_grad():
-    #         self._log_metrics(prefix, all_preds, all_labels)
         
     def _log_metrics(self, prefix, predictions, labels):
         metrics = self._compute_metrics(predictions, labels)
         self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, 
                       on_step=False, on_epoch=True, sync_dist=True)
-    
-    # def _compute_metrics(self, predictions, labels):
-        
-    #     if isinstance(predictions, list):
-    #        predictions = torch.cat(predictions, dim=0)
-    #     if isinstance(labels, list):
-    #         labels = torch.cat(labels, dim=0)
-        
-    #     predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
-    #     labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
-
-    #     decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)        
-    #     processed_labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
-    #     decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
-    #     result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
-    #     result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
-    #     result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-    #     results = {**result_rouge, **result_brt_average_values}
-    #     return results
     
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
@@ -246,11 +194,19 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
 
     
-        
-def main():
+    
+# Define the objective function for Optuna
+def objective(trial):
+    # Define hyperparameters to optimize
+    learning_rate = trial.suggest_float("learning_rate", 1e-7, 1e-3, log=True)
+    
     pl.seed_everything(seed_num)
-    model = T5SummarizationModule(model_name=model_name, learning_rate=learning_rate, 
-                                  optimizer_name=optimizer_name)
+    model = T5SummarizationModule(
+        model_name=model_name,
+        learning_rate=learning_rate,
+        optimizer_name=optimizer_name
+    )
+    
     data_module = T5SummarizationDataModule(
         model_name=model_name,
         dataset_name=dataset_name,
@@ -261,15 +217,18 @@ def main():
         test_range=test_range,
         seed_num=seed_num
     )
-    logger = TensorBoardLogger("tb_logs", name="my_model")
+    
+    logger = TensorBoardLogger("tb_logs", name=f"optuna_trial_{trial.number}")
+    
     checkpoint_callback = ModelCheckpoint(
-        dirpath=output_dir,
+        dirpath=f"./optuna_checkpoints/trial_{trial.number}",
         filename='best-checkpoint',
         save_top_k=1,
         verbose=True,
         monitor='val_loss',
         mode='min'
     )
+    
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=logger,
@@ -280,12 +239,35 @@ def main():
         accelerator='tpu',
         devices='auto',
         accumulate_grad_batches=16,
-        # precision="1"
     )
+    
     trainer.fit(model, datamodule=data_module)
-    test_results = trainer.test(model, datamodule=data_module)
+    
+    # Return the best validation loss as the objective value
+    return checkpoint_callback.best_model_score.item()
+
+
+def main():
+    # Set up the SQLite database storage
+    storage = RDBStorage(url='sqlite:///optuna_study.db')
+    
+    # Create or load the study
+    study = optuna.create_study(direction="minimize", storage=storage, study_name="t5_summarization_study", load_if_exists=True)
+    study.optimize(objective, n_trials=30)  # Adjust n_trials as needed
+    
+    print("Best trial:")
+    trial = study.best_trial
+    
+    print(" Value: ", trial.value)
+    print(" Params: ")
+    for key, value in trial.params.items():
+        print(f" {key}: {value}")
+    
+    # Save best hyperparameters to a file
+    output_dir = "./optuna_results"
     os.makedirs(output_dir, exist_ok=True)
-    with open(f"{output_dir}/results_with_seed_{seed_num}.txt", "w") as f:
+    
+    with open(f"{output_dir}/best_hyperparameters_with_seed_{seed_num}.txt", "w") as f:
         f.write(f"Seed: {seed_num}\n")
         f.write(f"Model: {model_name}\n")
         f.write(f"Dataset: {dataset_name}\n")
@@ -294,11 +276,10 @@ def main():
         f.write(f'Test range: {test_range}\n')
         f.write(f'Validation range: {val_range}\n')
         f.write(f'Learning rate: {learning_rate}\n')
-        # f.write(f'Time Completion: {round(total_time, 2)} Seconds\n')
-        f.write("\nBest checkpoint:\n")
-        f.write(f"{checkpoint_callback.best_model_path}\n")
-        f.write("\nTest results:\n")
-        f.write("\n".join([f"{key}: {value}" for key, value in test_results[0].items()]))
+        f.write(f"Best Validation Loss: {trial.value}\n")
+        f.write("Best Hyperparameters:\n")
+        for key, value in trial.params.items():
+            f.write(f"{key}: {value}\n")
 
 if __name__ == "__main__":
     main()
