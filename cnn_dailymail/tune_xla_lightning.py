@@ -244,7 +244,8 @@ def objective(trial):
     trainer.fit(model, datamodule=data_module)
     
     # Return the best validation loss as the objective value
-    return trainer.checkpoint_callback.best_model_score.item()
+    ic(trainer.checkpoint_callback.keys())
+    return trainer.checkpoint_callback.best_model_score
 
 
 def main():
