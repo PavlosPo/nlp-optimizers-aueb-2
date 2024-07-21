@@ -237,9 +237,9 @@ def objective(trial):
         log_every_n_steps=10,
         enable_checkpointing=True,
         num_sanity_val_steps=0,
-        accelerator='tpu',
+        accelerator='auto',
         devices='auto',
-        accumulate_grad_batches=16,
+        # accumulate_grad_batches=16,
     )
     hyperparameters = dict(learning_rate=learning_rate)
     trainer.logger.log_hyperparams(hyperparameters)
