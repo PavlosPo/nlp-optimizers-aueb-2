@@ -246,7 +246,6 @@ def objective(trial):
     trainer.fit(model, datamodule=data_module)
     
     # Return the best validation loss as the objective value
-    # TODO: Fix the returned value
     return trainer.callback_metrics["val_loss"].item()
 
 
@@ -255,8 +254,8 @@ def main():
     storage = RDBStorage(url='sqlite:///optuna_study.db')
     
     # Create or load the study
-    study = optuna.create_study(direction="minimize", storage=storage, study_name="t5_summarization_study", 
-                                load_if_exists=False, pruner=optuna.pruners.MedianPruner())
+    study = optuna.create_study(direction="minimize", storage=storage, study_name=f"{model_name.strip('/')[1]}_{optimizer_name}_with_seed_{seed_num}", 
+                                load_if_exists=True, pruner=optuna.pruners.MedianPruner())
     study.optimize(objective, n_trials=3)  # Adjust n_trials as needed
     
     print("Best trial:")
