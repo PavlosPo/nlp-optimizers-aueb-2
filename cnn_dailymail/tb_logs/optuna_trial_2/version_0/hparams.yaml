@@ -1,0 +1,4 @@
+generation_max_tokens: 20
+learning_rate: 9.085766480545952e-05
+model_name: google-t5/t5-small
+optimizer_name: adam
