@@ -15,9 +15,14 @@ import os
 import argparse
 from icecream import ic
 import numpy as np
+from dotenv import load_dotenv # for optuna database link
 
+
+# Load environment variables from .env file
+load_dotenv()
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
+db_url = os.getenv("OPTUNA_DB_URL")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
@@ -250,7 +255,7 @@ def objective(trial):
 
 def main():
     # Set up the SQLite database storage
-    storage = RDBStorage(url='sqlite:///optuna_study_lr_tuning.db')
+    storage = RDBStorage(url=db_url)
     
     # Create or load the study
     study = optuna.create_study(
