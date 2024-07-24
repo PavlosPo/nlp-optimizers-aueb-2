@@ -27,14 +27,23 @@ args = parser.parse_args()
 
 # Parameters
 optimizer_name = args.optim
-model_name = "google-t5/t5-small"
+# Ask the user to choose between small, base and large model
+model_size = input("Choose a model size (1 for small, 2 for base, 3 for large): ")
+model_names = {
+    "1": "google-t5/t5-small",
+    "2": "google-t5/t5-base",
+    "3": "google-t5/t5-large"
+}
+model_name = model_names.get(model_size, "google-t5/t5-small")
+if model_size not in model_names:
+    print("Invalid model size. Using small model.")
 dataset_name = "cnn_dailymail"
 seed_num = args.seed
 max_length = 512
-train_range = 15000
-test_range = 1500
-val_range = 1500
-epochs = 2
+train_range = 4 * 15000
+test_range = 4 * 1500
+val_range = 4 * 1500
+epochs = 10
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
