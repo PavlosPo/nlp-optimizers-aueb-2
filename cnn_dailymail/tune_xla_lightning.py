@@ -34,12 +34,18 @@ model_names = {
     "2": "google-t5/t5-base",
     "3": "google-t5/t5-large"
 }
+max_length = {
+    "1": 512,
+    "2": 768,
+    "3": 1024
+}
 model_name = model_names.get(model_size, "google-t5/t5-small")
+max_length = max_length.get(model_size, 512)
 if model_size not in model_names:
     print("Invalid model size. Using small model.")
 dataset_name = "cnn_dailymail"
 seed_num = args.seed
-max_length = 512
+max_length = None # Will be set in the T5SummarizationModule dynamically
 train_range = 4 * 15000
 test_range = 4 * 1500
 val_range = 4 * 1500
@@ -55,6 +61,9 @@ class T5SummarizationModule(pl.LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
+        
+        global max_length
+        max_length = self.model.config.max_length
 
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
