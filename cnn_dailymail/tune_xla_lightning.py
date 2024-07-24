@@ -23,6 +23,8 @@ load_dotenv()
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 db_url = os.getenv("OPTUNA_DB_URL")
+if db_url and db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
