@@ -46,10 +46,10 @@ if model_size not in model_names:
 dataset_name = "cnn_dailymail"
 seed_num = args.seed
 max_length = None # Will be set in the T5SummarizationModule dynamically
-train_range = 4 * 15000
-test_range = 4 * 1500
-val_range = 4 * 1500
-epochs = 10
+train_range = 15000
+test_range = 1500
+val_range = 1500
+epochs = 2
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
