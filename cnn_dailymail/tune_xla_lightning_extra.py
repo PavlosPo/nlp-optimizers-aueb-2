@@ -189,12 +189,45 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 # Define the objective function for Optuna
 def objective(trial):
     # Define hyperparameters to optimize
-    learning_rate = trial.suggest_float("learning_rate",learning_rate_range[0],learning_rate_range[1], log=True)
+    learning_rate = trial.suggest_float("learning_rate", learning_rate_range[0], learning_rate_range[1], log=True)
+    
+    if optimizer_name == "adam":
+        beta1 = trial.suggest_float("beta1", 0.8, 0.999)
+        beta2 = trial.suggest_float("beta2", 0.8, 0.999)
+        epsilon = trial.suggest_float("epsilon", 1e-8, 1e-4, log=True)
+        hyperparameters = {
+            "learning_rate": learning_rate,
+            "beta1": beta1,
+            "beta2": beta2,
+            "epsilon": epsilon
+        }
+    elif optimizer_name == "adamw":
+        beta1 = trial.suggest_float("beta1", 0.8, 0.999)
+        beta2 = trial.suggest_float("beta2", 0.8, 0.999)
+        epsilon = trial.suggest_float("epsilon", 1e-8, 1e-4, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 0.0, 0.3)
+        hyperparameters = {
+            "learning_rate": learning_rate,
+            "beta1": beta1,
+            "beta2": beta2,
+            "epsilon": epsilon,
+            "weight_decay": weight_decay
+        }
+    elif optimizer_name == "sgd":
+        momentum = trial.suggest_float("momentum", 0.0, 0.99)
+        nesterov = trial.suggest_categorical("nesterov", [True, False])
+        hyperparameters = {
+            "learning_rate": learning_rate,
+            "momentum": momentum,
+            "nesterov": nesterov
+        }
+    else:
+        raise ValueError(f"Unsupported optimizer: {optimizer_name}")
     
     pl.seed_everything(seed_num)
     model = T5SummarizationModule(
         model_name=model_name,
-        learning_rate=learning_rate,
+        learning_rate=hyperparameters["learning_rate"],
         optimizer_name=optimizer_name
     )
     
@@ -220,25 +253,23 @@ def objective(trial):
         num_sanity_val_steps=0,
         accelerator='auto',
         devices='auto',
-        # accumulate_grad_batches=16,
     )
-    hyperparameters = dict(learning_rate=learning_rate)
+    
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
     
     # Return the best validation loss as the objective value
     return trainer.callback_metrics["val_loss"].item()
 
-
 def main():
     # Set up the SQLite database storage
-    storage = RDBStorage(url='sqlite:///optuna_study_lr_tuning.db')
+    storage = RDBStorage(url='sqlite:///optuna_study_full_tuning.db')
     
     # Create or load the study
     study = optuna.create_study(
         direction="minimize", 
         storage=storage, 
-        study_name=f"{model_name}_{optimizer_name}_with_seed_{seed_num}", 
+        study_name=f"{model_name}_{optimizer_name}_with_seed_{seed_num}_full_tuning", 
         load_if_exists=True, 
         pruner=optuna.pruners.MedianPruner()
     )
@@ -252,15 +283,16 @@ def main():
     for key, value in trial.params.items():
         print(f" {key}: {value}")
     
-
     # Define the output directory structure
     output_dir = os.path.join(
-        "hypertuning_results_lr_tuning",
+        "hypertuning_results_full_tuning",
         model_name.replace("/", "_"),
         optimizer_name,
         f"seed_{seed_num}"
     )
     os.makedirs(output_dir, exist_ok=True)
+    
+    # Save best hyperparameters to a file
     result_file = os.path.join(output_dir, "best_hyperparameters.txt")
     
     with open(result_file, "w") as f:
@@ -277,6 +309,7 @@ def main():
             f.write(f"{key}: {value}\n")
         f.write("Search Spaces:\n")
         f.write(f"  learning_rate: {learning_rate_range}\n")
+        # TODO: Add the other search spaces too.
 
 if __name__ == "__main__":
     main()

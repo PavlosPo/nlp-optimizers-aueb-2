@@ -1,4 +1,0 @@
-generation_max_tokens: 20
-learning_rate: 2.2072569300238475e-07
-model_name: google-t5/t5-small
-optimizer_name: sgd
