@@ -6,6 +6,6 @@ Training range: 15000
 Test range: 1500
 Validation range: 1500
 Learning rate: 9.9879589111261e-06
-Best Validation Loss: 5.947024345397949
+Best Validation Loss: 0.43440011143684387
 Best Hyperparameters:
-learning_rate: 6.004690254495941e-05
+learning_rate: 0.0007238049505758843
