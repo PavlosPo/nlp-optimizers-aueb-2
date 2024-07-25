@@ -22,9 +22,10 @@ from dotenv import load_dotenv # for optuna database link
 load_dotenv()
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
-db_url = os.getenv("AMAZON_DB_CONN_STRING")
+db_url = os.getenv("AMAZON_DB_CONN_STRING") + "optuna_db_lr_only"
 if db_url and db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
