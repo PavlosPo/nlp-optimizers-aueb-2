@@ -94,7 +94,7 @@ class T5SummarizationModule(pl.LightningModule):
                                    attention_mask=batch["attention_mask"],
                                    labels=batch["labels"])
             loss = outputs['loss']
-            self.log("val_loss", loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+            self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
     def test_step(self, batch, batch_idx):
