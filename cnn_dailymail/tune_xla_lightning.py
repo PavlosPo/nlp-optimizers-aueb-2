@@ -22,10 +22,12 @@ from dotenv import load_dotenv # for optuna database link
 load_dotenv()
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
-db_url = os.getenv("AMAZON_DB_CONN_STRING") + "optuna_db_lr_only"
-if db_url and db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
+# db_url = os.getenv("AMAZON_DB_CONN_STRING") + "optuna_db_lr_only"
+# if db_url and db_url.startswith("postgres://"):
+#     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
+name_of_database_based_on_server_name = os.getenv("SERVER_NAME")
+db_url = f"sqlite:///{name_of_database_based_on_server_name}.db"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
@@ -54,10 +56,10 @@ if model_size not in model_names:
 dataset_name = "cnn_dailymail"
 seed_num = args.seed
 max_length = None # Will be set in the T5SummarizationModule dynamically
-train_range = 15000
-test_range = 1500
-val_range = 1500
-epochs = 2
+train_range = 50000
+test_range = 5000
+val_range = 5000
+epochs = 10
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
@@ -242,6 +244,7 @@ def objective(trial):
         logger=logger,
         callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
         log_every_n_steps=10,
+        val_check_interval=0.2,
         enable_checkpointing=True,
         num_sanity_val_steps=0,
         accelerator='auto',
@@ -268,7 +271,7 @@ def main():
         load_if_exists=True, 
         pruner=optuna.pruners.MedianPruner()
     )
-    study.optimize(objective, n_trials=30)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=3)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
