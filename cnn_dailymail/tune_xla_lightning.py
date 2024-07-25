@@ -8,6 +8,7 @@ from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoToke
 from datasets import load_dataset
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
+from torchmetrics import MeanMetric
 import optuna
 from optuna.integration import PyTorchLightningPruningCallback
 from optuna.storages import RDBStorage
@@ -75,6 +76,9 @@ class T5SummarizationModule(pl.LightningModule):
         
         global max_length
         max_length = self.model.config.max_length
+        
+        # This line to create a metric for tracking validation loss
+        self.val_loss = MeanMetric()
 
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -94,8 +98,21 @@ class T5SummarizationModule(pl.LightningModule):
                                    attention_mask=batch["attention_mask"],
                                    labels=batch["labels"])
             loss = outputs['loss']
-            self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            # Update the validation loss metric
+            self.val_loss.update(loss)
+            # Log the batch validation loss
+            self.log("val_loss_step", loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         return loss
+    
+    def on_validation_epoch_end(self):
+        # Compute the mean validation loss for the epoch
+        avg_loss = self.val_loss.compute()
+        
+        # Log the epoch validation loss
+        self.log("val_loss", avg_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        
+        # Reset the metric for the next epoch
+        self.val_loss.reset()
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
