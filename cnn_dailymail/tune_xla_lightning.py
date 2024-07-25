@@ -54,7 +54,8 @@ max_length = max_length.get(model_size, 512)
 if model_size not in model_names:
     print("Invalid model size. Using small model.")
 dataset_name = "cnn_dailymail"
-seed_num = args.seed
+# seed_num = args.seed
+seed_num = (1, 10, 100, 1000)
 max_length = None # Will be set in the T5SummarizationModule dynamically
 train_range = 50000
 test_range = 5000
@@ -219,7 +220,7 @@ def objective(trial):
     # Define hyperparameters to optimize
     learning_rate = trial.suggest_float("learning_rate",learning_rate_range[0],learning_rate_range[1], log=True)
     
-    pl.seed_everything(seed_num)
+    pl.seed_everything(current_seed_num)
     model = T5SummarizationModule(
         model_name=model_name,
         learning_rate=learning_rate,
@@ -234,7 +235,7 @@ def objective(trial):
         train_range=train_range,
         val_range=val_range,
         test_range=test_range,
-        seed_num=seed_num
+        seed_num=current_seed_num
     )
     
     logger = TensorBoardLogger("tb_logs", name=f"{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}")
@@ -259,7 +260,7 @@ def objective(trial):
     return trainer.callback_metrics["val_loss"].item()
 
 
-def main():
+def main(current_seed_num):
     # Set up the SQLite database storage
     storage = RDBStorage(url=db_url)
     
@@ -267,7 +268,7 @@ def main():
     study = optuna.create_study(
         direction="minimize", 
         storage=storage, 
-        study_name=f"{model_name}_{optimizer_name}_with_seed_{seed_num}", 
+        study_name=f"{model_name}_{optimizer_name}_with_seed_{current_seed_num}", 
         load_if_exists=True, 
         pruner=optuna.pruners.MedianPruner()
     )
@@ -287,13 +288,13 @@ def main():
         "hypertuning_results_lr_tuning",
         model_name.replace("/", "_"),
         optimizer_name,
-        f"seed_{seed_num}"
+        f"seed_{current_seed_num}"
     )
     os.makedirs(output_dir, exist_ok=True)
     result_file = os.path.join(output_dir, "best_hyperparameters.txt")
     
     with open(result_file, "w") as f:
-        f.write(f"Seed: {seed_num}\n")
+        f.write(f"Seed: {current_seed_num}\n")
         f.write(f"Model: {model_name}\n")
         f.write(f"Dataset: {dataset_name}\n")
         f.write(f"Optimizer: {optimizer_name}\n")
@@ -308,4 +309,7 @@ def main():
         f.write(f"  learning_rate: {learning_rate_range}\n")
 
 if __name__ == "__main__":
-    main()
+    for current_seed_num in seed_num:
+        print(f"Current seed: {current_seed_num}")
+        main(current_seed_num)
+        print("---" * 10)
