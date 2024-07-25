@@ -22,7 +22,7 @@ from dotenv import load_dotenv # for optuna database link
 load_dotenv()
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
-db_url = os.getenv("OPTUNA_DB_URL")
+db_url = os.getenv("AMAZON_DB_CONN_STRING")
 if db_url and db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
