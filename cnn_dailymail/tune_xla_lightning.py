@@ -94,7 +94,7 @@ class T5SummarizationModule(pl.LightningModule):
                                    attention_mask=batch["attention_mask"],
                                    labels=batch["labels"])
             loss = outputs['loss']
-            self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+            self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -106,10 +106,10 @@ class T5SummarizationModule(pl.LightningModule):
             self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
         
-    def _log_metrics(self, prefix, predictions, labels):
-        metrics = self._compute_metrics(predictions, labels)
-        self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, 
-                      on_step=False, on_epoch=True, sync_dist=True)
+    # def _log_metrics(self, prefix, predictions, labels):
+    #     metrics = self._compute_metrics(predictions, labels)
+    #     self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, 
+    #                   on_step=True, on_epoch=True, sync_dist=True)
     
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
