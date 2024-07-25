@@ -287,7 +287,7 @@ def main(current_seed_num):
         load_if_exists=True, 
         pruner=optuna.pruners.MedianPruner()
     )
-    study.optimize(objective, n_trials=3)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=30)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
