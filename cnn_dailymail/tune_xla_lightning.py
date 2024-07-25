@@ -100,8 +100,6 @@ class T5SummarizationModule(pl.LightningModule):
             loss = outputs['loss']
             # Update the validation loss metric
             self.val_loss.update(loss)
-            # Log the batch validation loss
-            self.log("val_loss_step", loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         return loss
     
     def on_validation_epoch_end(self):
@@ -261,7 +259,7 @@ def objective(trial):
         max_epochs=epochs,
         logger=logger,
         callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
-        log_every_n_steps=10,
+        log_every_n_steps=1,
         val_check_interval=0.2,
         enable_checkpointing=True,
         num_sanity_val_steps=0,
