@@ -30,7 +30,7 @@ name_of_database_based_on_server_name = os.getenv("SERVER_NAME")
 db_url = f"sqlite:///{name_of_database_based_on_server_name}.db"
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
+# parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
 parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
 parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
 args = parser.parse_args()
@@ -55,12 +55,12 @@ if model_size not in model_names:
     print("Invalid model size. Using small model.")
 dataset_name = "cnn_dailymail"
 # seed_num = args.seed
-seed_num = (1, 10, 100, 1000)
+seed_num = (1, 10)
 max_length = None # Will be set in the T5SummarizationModule dynamically
 train_range = 50000
 test_range = 5000
 val_range = 5000
-epochs = 10
+epochs = 2
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
@@ -238,7 +238,7 @@ def objective(trial):
         seed_num=current_seed_num
     )
     
-    logger = TensorBoardLogger("tb_logs", name=f"{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}")
+    logger = TensorBoardLogger("tb_logs", name=f"{model_name}_{optimizer_name}_seed_{current_seed_num}_trial_{trial.number}")
     
     trainer = pl.Trainer(
         max_epochs=epochs,
