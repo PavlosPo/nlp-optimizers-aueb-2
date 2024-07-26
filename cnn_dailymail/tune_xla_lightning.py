@@ -62,7 +62,7 @@ max_length = None # Will be set in the T5SummarizationModule dynamically
 train_range = 30000
 test_range = 3000
 val_range = 3000
-epochs = 2
+epochs = 1
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
@@ -268,7 +268,7 @@ def objective(trial):
         trainer.fit(model, datamodule=data_module)
         
         # Return the best validation loss as the objective value
-        val_loss = trainer.best_model_score
+        val_loss = trainer.callbacks[0].best_model_score
         
         # Clean up
         del model, data_module, trainer
