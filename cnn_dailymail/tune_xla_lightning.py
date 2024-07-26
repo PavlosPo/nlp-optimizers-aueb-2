@@ -260,7 +260,6 @@ def objective(trial):
         trainer = pl.Trainer(
             max_epochs=epochs,
             logger=logger,
-            # callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
             callbacks=[checkpoint_callback],
             log_every_n_steps=1,
             val_check_interval=0.3,
@@ -273,9 +272,13 @@ def objective(trial):
         trainer.fit(model, datamodule=data_module)
         
         # Return the best validation loss as the objective value
-        
-        val_loss = checkpoint_callback['best_model_score']
-        ic(checkpoint_callback.keys())
+        # Ensure the checkpoint callback has a best model score recorded
+        if checkpoint_callback.best_model_score is not None:
+            val_loss = checkpoint_callback.best_model_score.item()
+            ic(val_loss)
+        else:
+            print("No best model score found. Validation might not have run correctly.")
+            val_loss = float('inf')  # or another large number to signify failure
         
         # Clean up
         del model, data_module, trainer
