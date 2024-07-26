@@ -80,8 +80,9 @@ class T5SummarizationModule(pl.LightningModule):
         
         # This line to create a metric for tracking validation loss
         # Use torchmetrics for distributed-aware metric computation
-        self.train_loss = MeanMetric()
+        # self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
+        self.val_loss_ = []
         self.test_loss = MeanMetric()
 
     def forward(self, input_ids, attention_mask, labels=None):
@@ -93,8 +94,7 @@ class T5SummarizationModule(pl.LightningModule):
                                attention_mask=batch["attention_mask"], 
                                labels=batch["labels"])
         loss = outputs['loss']
-        self.train_loss(loss)
-        self.log("train_loss", self.train_loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+        self.log("train_loss", loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
@@ -104,18 +104,18 @@ class T5SummarizationModule(pl.LightningModule):
                                    labels=batch["labels"])
             loss = outputs['loss']
             # Update the validation loss metric
-            self.val_loss.update(loss)
+            self.val_loss_ += [loss.item()]
         return loss
     
     def on_validation_epoch_end(self):
         # Compute the mean validation loss for the epoch
-        avg_loss = self.val_loss.compute()
+        avg_loss = self.val_loss_.mean()
         
         # Log the epoch validation loss
         self.log("val_loss", avg_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         
         # Reset the metric for the next epoch
-        self.val_loss.reset()
+        self.val_loss_ = []
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
