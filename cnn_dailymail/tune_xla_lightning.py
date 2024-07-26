@@ -256,6 +256,7 @@ def objective(trial):
             max_epochs=epochs,
             logger=logger,
             # callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
+            callbacks=[ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{current_seed_num}_trial_{trial.number}", monitor="val_loss")],
             log_every_n_steps=1,
             val_check_interval=0.3,
             num_sanity_val_steps=0,
@@ -267,7 +268,7 @@ def objective(trial):
         trainer.fit(model, datamodule=data_module)
         
         # Return the best validation loss as the objective value
-        val_loss = trainer.callback_metrics["val_loss"].item()
+        val_loss = trainer.best_model_score
         
         # Clean up
         del model, data_module, trainer
