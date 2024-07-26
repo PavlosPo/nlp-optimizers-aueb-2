@@ -252,7 +252,10 @@ def objective(trial):
         
         logger = TensorBoardLogger("tb_logs", name=f"{model_name}_{optimizer_name}_seed_{current_seed_num}_trial_{trial.number}")
         
-        checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{current_seed_num}_trial_{trial.number}", monitor="val_loss")
+        checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{current_seed_num}_trial_{trial.number}", 
+                                              monitor="val_loss", 
+                                              mode="min",
+                                              save_top_k=1)
         trainer = pl.Trainer(
             max_epochs=epochs,
             logger=logger,
@@ -269,7 +272,7 @@ def objective(trial):
         trainer.fit(model, datamodule=data_module)
         
         # Return the best validation loss as the objective value
-        val_loss = checkpoint_callback.best_model_score
+        val_loss = trainer.checkpoint_callback.best_model_score
         
         # Clean up
         del model, data_module, trainer
