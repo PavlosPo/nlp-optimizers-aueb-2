@@ -59,10 +59,10 @@ dataset_name = "cnn_dailymail"
 # seed_num = args.seed
 seed_num = (1, 10, 100, 1000)
 max_length = None # Will be set in the T5SummarizationModule dynamically
-train_range = 30000
-test_range = 3000
-val_range = 3000
-epochs = 1
+train_range = 50000
+test_range = 5000
+val_range = 5000
+epochs = 10
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
