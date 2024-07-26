@@ -62,7 +62,7 @@ max_length = None # Will be set in the T5SummarizationModule dynamically
 train_range = 30000
 test_range = 3000
 val_range = 3000
-epochs = 10
+epochs = 2
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
