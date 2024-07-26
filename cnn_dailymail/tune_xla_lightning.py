@@ -273,7 +273,9 @@ def objective(trial):
         trainer.fit(model, datamodule=data_module)
         
         # Return the best validation loss as the objective value
-        val_loss = trainer.checkpoint_callback.best_model_score
+        
+        val_loss = checkpoint_callback['best_model_score']
+        ic(checkpoint_callback.keys())
         
         # Clean up
         del model, data_module, trainer
@@ -284,7 +286,7 @@ def objective(trial):
         return val_loss
     except Exception as e:
         print(f"Error in trial {trial.number}: {str(e)}")
-        return float('inf')
+        return e
 
 
 def main(current_seed_num):
