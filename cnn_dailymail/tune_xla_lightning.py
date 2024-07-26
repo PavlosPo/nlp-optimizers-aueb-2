@@ -79,7 +79,10 @@ class T5SummarizationModule(pl.LightningModule):
         max_length = self.model.config.max_length
         
         # This line to create a metric for tracking validation loss
+        # Use torchmetrics for distributed-aware metric computation
+        self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
+        self.test_loss = MeanMetric()
 
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -90,7 +93,8 @@ class T5SummarizationModule(pl.LightningModule):
                                attention_mask=batch["attention_mask"], 
                                labels=batch["labels"])
         loss = outputs['loss']
-        self.log("train_loss", loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
+        self.train_loss(loss)
+        self.log("train_loss", self.train_loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
@@ -262,8 +266,7 @@ def objective(trial):
             logger=logger,
             callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
             log_every_n_steps=1,
-            val_check_interval=0.3,
-            enable_checkpointing=True,
+            val_check_interval=0.25,
             num_sanity_val_steps=0,
             accelerator='auto',
             devices='auto',
@@ -284,8 +287,8 @@ def objective(trial):
         
         return val_loss
     except Exception as e:
-            print(f"Error in trial {trial.number}: {str(e)}")
-            return float('inf')
+        print(f"Error in trial {trial.number}: {str(e)}")
+        return float('inf')
 
 
 def main(current_seed_num):
@@ -297,8 +300,7 @@ def main(current_seed_num):
         direction="minimize", 
         storage=storage, 
         study_name=f"{model_name}_{optimizer_name}_with_seed_{current_seed_num}", 
-        load_if_exists=True, 
-        pruner=optuna.pruners.MedianPruner()
+        load_if_exists=True
     )
     study.optimize(objective, n_trials=2, timeout=3600)  # Adjust n_trials as needed
     
