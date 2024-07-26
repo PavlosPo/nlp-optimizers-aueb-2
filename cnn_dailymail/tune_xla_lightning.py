@@ -62,7 +62,7 @@ max_length = None # Will be set in the T5SummarizationModule dynamically
 train_range = 30000
 test_range = 3000
 val_range = 3000
-epochs = 1
+epochs = 10
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
@@ -79,11 +79,7 @@ class T5SummarizationModule(pl.LightningModule):
         max_length = self.model.config.max_length
         
         # This line to create a metric for tracking validation loss
-        # Use torchmetrics for distributed-aware metric computation
-        # self.train_loss = MeanMetric()
-        # self.val_loss = MeanMetric()
-        self.val_loss_ = []
-        # self.test_loss = MeanMetric()
+        self.val_loss = MeanMetric()
 
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -104,19 +100,18 @@ class T5SummarizationModule(pl.LightningModule):
                                    labels=batch["labels"])
             loss = outputs['loss']
             # Update the validation loss metric
-            self.val_loss_.append(loss.item())
+            self.val_loss.update(loss)
         return loss
     
     def on_validation_epoch_end(self):
         # Compute the mean validation loss for the epoch
-        # mean of the list
-        avg_loss = np.mean(self.val_loss_)
+        avg_loss = self.val_loss.compute()
         
         # Log the epoch validation loss
         self.log("val_loss", avg_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         
         # Reset the metric for the next epoch
-        self.val_loss_ = []
+        self.val_loss.reset()
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
@@ -127,11 +122,6 @@ class T5SummarizationModule(pl.LightningModule):
             self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
         
-    # def _log_metrics(self, prefix, predictions, labels):
-    #     metrics = self._compute_metrics(predictions, labels)
-    #     self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, 
-    #                   on_step=True, on_epoch=True, sync_dist=True)
-    
     def configure_optimizers(self):
         optimizer = self._get_optimizer()
         return optimizer
@@ -267,11 +257,10 @@ def objective(trial):
             logger=logger,
             # callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
             log_every_n_steps=1,
-            val_check_interval=0.25,
+            val_check_interval=0.3,
             num_sanity_val_steps=0,
             accelerator='auto',
             devices='auto',
-            accumulate_grad_batches=16,
         )
         hyperparameters = dict(learning_rate=learning_rate)
         trainer.logger.log_hyperparams(hyperparameters)
@@ -303,7 +292,7 @@ def main(current_seed_num):
         study_name=f"{model_name}_{optimizer_name}_with_seed_{current_seed_num}", 
         load_if_exists=True
     )
-    study.optimize(objective, n_trials=2, timeout=3600)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=30, timeout=3600)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
