@@ -271,14 +271,7 @@ def objective(trial):
         trainer.logger.log_hyperparams(hyperparameters)
         trainer.fit(model, datamodule=data_module)
         
-        # Return the best validation loss as the objective value
-        # Ensure the checkpoint callback has a best model score recorded
-        if checkpoint_callback.best_model_score is not None:
-            val_loss = checkpoint_callback.best_model_score.item()
-            ic(val_loss)
-        else:
-            print("No best model score found. Validation might not have run correctly.")
-            val_loss = float('inf')  # or another large number to signify failure
+        val_loss = trainer.callback_metrics['val_loss'].item()
         
         # Clean up
         del model, data_module, trainer
