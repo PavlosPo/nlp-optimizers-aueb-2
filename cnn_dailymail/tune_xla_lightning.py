@@ -257,7 +257,7 @@ def objective(trial):
             max_epochs=epochs,
             logger=logger,
             # callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
-            callbacks=[checkpoint_callback]
+            callbacks=[checkpoint_callback],
             log_every_n_steps=1,
             val_check_interval=0.3,
             num_sanity_val_steps=0,
