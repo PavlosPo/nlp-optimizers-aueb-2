@@ -256,6 +256,7 @@ def objective(trial):
                                               monitor="val_loss", 
                                               mode="min",
                                               save_top_k=1)
+        
         trainer = pl.Trainer(
             max_epochs=epochs,
             logger=logger,
