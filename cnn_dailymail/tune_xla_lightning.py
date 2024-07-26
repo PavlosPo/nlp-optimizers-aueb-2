@@ -265,7 +265,7 @@ def objective(trial):
         trainer = pl.Trainer(
             max_epochs=epochs,
             logger=logger,
-            callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
+            # callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
             log_every_n_steps=1,
             val_check_interval=0.25,
             num_sanity_val_steps=0,
