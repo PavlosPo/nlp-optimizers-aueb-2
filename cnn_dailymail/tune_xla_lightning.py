@@ -17,6 +17,7 @@ import argparse
 from icecream import ic
 import numpy as np
 from dotenv import load_dotenv # for optuna database link
+import gc
 
 
 # Load environment variables from .env file
@@ -61,7 +62,7 @@ max_length = None # Will be set in the T5SummarizationModule dynamically
 train_range = 30000
 test_range = 3000
 val_range = 3000
-epochs = 5
+epochs = 1
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
@@ -232,47 +233,59 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 
 # Define the objective function for Optuna
 def objective(trial):
-    # Define hyperparameters to optimize
-    learning_rate = trial.suggest_float("learning_rate",learning_rate_range[0],learning_rate_range[1], log=True)
-    
-    pl.seed_everything(current_seed_num)
-    model = T5SummarizationModule(
-        model_name=model_name,
-        learning_rate=learning_rate,
-        optimizer_name=optimizer_name
-    )
-    
-    data_module = T5SummarizationDataModule(
-        model_name=model_name,
-        dataset_name=dataset_name,
-        max_length=max_length,
-        batch_size=batch_size,
-        train_range=train_range,
-        val_range=val_range,
-        test_range=test_range,
-        seed_num=current_seed_num
-    )
-    
-    logger = TensorBoardLogger("tb_logs", name=f"{model_name}_{optimizer_name}_seed_{current_seed_num}_trial_{trial.number}")
-    
-    trainer = pl.Trainer(
-        max_epochs=epochs,
-        logger=logger,
-        callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
-        log_every_n_steps=1,
-        val_check_interval=0.3,
-        enable_checkpointing=True,
-        num_sanity_val_steps=0,
-        accelerator='auto',
-        devices='auto',
-        # accumulate_grad_batches=16,
-    )
-    hyperparameters = dict(learning_rate=learning_rate)
-    trainer.logger.log_hyperparams(hyperparameters)
-    trainer.fit(model, datamodule=data_module)
-    
-    # Return the best validation loss as the objective value
-    return trainer.callback_metrics["val_loss"].item()
+    try:
+        # Define hyperparameters to optimize
+        learning_rate = trial.suggest_float("learning_rate",learning_rate_range[0],learning_rate_range[1], log=True)
+        
+        pl.seed_everything(current_seed_num)
+        model = T5SummarizationModule(
+            model_name=model_name,
+            learning_rate=learning_rate,
+            optimizer_name=optimizer_name
+        )
+        
+        data_module = T5SummarizationDataModule(
+            model_name=model_name,
+            dataset_name=dataset_name,
+            max_length=max_length,
+            batch_size=batch_size,
+            train_range=train_range,
+            val_range=val_range,
+            test_range=test_range,
+            seed_num=current_seed_num
+        )
+        
+        logger = TensorBoardLogger("tb_logs", name=f"{model_name}_{optimizer_name}_seed_{current_seed_num}_trial_{trial.number}")
+        
+        trainer = pl.Trainer(
+            max_epochs=epochs,
+            logger=logger,
+            callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
+            log_every_n_steps=1,
+            val_check_interval=0.3,
+            enable_checkpointing=True,
+            num_sanity_val_steps=0,
+            accelerator='auto',
+            devices='auto',
+            accumulate_grad_batches=16,
+        )
+        hyperparameters = dict(learning_rate=learning_rate)
+        trainer.logger.log_hyperparams(hyperparameters)
+        trainer.fit(model, datamodule=data_module)
+        
+        # Return the best validation loss as the objective value
+        val_loss = trainer.callback_metrics["val_loss"].item()
+        
+        # Clean up
+        del model, data_module, trainer
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        return val_loss
+    except Exception as e:
+            print(f"Error in trial {trial.number}: {str(e)}")
+            return float('inf')
 
 
 def main(current_seed_num):
@@ -287,7 +300,7 @@ def main(current_seed_num):
         load_if_exists=True, 
         pruner=optuna.pruners.MedianPruner()
     )
-    study.optimize(objective, n_trials=30)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=2, timeout=3600)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
@@ -327,4 +340,4 @@ if __name__ == "__main__":
     for current_seed_num in seed_num:
         print(f"Current seed: {current_seed_num}")
         main(current_seed_num)
-        print("---" * 10)
+        print("---" * 20)
