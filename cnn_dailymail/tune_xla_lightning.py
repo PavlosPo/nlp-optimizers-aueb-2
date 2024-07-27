@@ -59,10 +59,10 @@ dataset_name = "cnn_dailymail"
 # seed_num = args.seed
 seed_num = (1, 10, 100, 1000)
 max_length = None # Will be set in the T5SummarizationModule dynamically
-train_range = 50000
-test_range = 5000
-val_range = 5000
-epochs = 10
+train_range = 1000
+test_range = 500
+val_range = 500
+epochs = 1
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
@@ -273,15 +273,11 @@ def objective(trial):
         
         val_loss = trainer.callback_metrics['val_loss'].item()
         
-        # Clean up
-        del model, data_module, trainer
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        
         return val_loss
     except Exception as e:
         print(f"Error in trial {trial.number}: {str(e)}")
+        with open("error_log.txt", "a") as f:
+            f.write(f"Error in trial {trial.number}:\n{str(e)}\n")
         return e
 
 
@@ -296,7 +292,7 @@ def main(current_seed_num):
         study_name=f"{model_name}_{optimizer_name}_with_seed_{current_seed_num}", 
         load_if_exists=True
     )
-    study.optimize(objective, n_trials=30, timeout=3600)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=3, timeout=3600)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
