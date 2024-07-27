@@ -11,9 +11,6 @@ import optuna
 from optuna.storages import RDBStorage
 import os
 import argparse
-from icecream import ic
-import numpy as np
-import gc
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
@@ -29,7 +26,6 @@ args = parser.parse_args()
 # Parameters
 optimizer_name = args.optim
 # Ask the user to choose between small, base and large model
-model_size = input("Choose a model size (1 for small, 2 for base, 3 for large): ")
 model_names = {
     "1": "google-t5/t5-small",
     "2": "google-t5/t5-base",
@@ -40,13 +36,10 @@ max_length = {
     "2": 768,
     "3": 1024
 }
-model_name = model_names.get(model_size, "google-t5/t5-small")
-max_length = max_length.get(model_size, 512)
-if model_size not in model_names:
-    print("Invalid model size. Using small model.")
+model_name = "google-t5/t5-small"
+max_length = 512
 dataset_name = "cnn_dailymail"
 seed_num = args.seed
-max_length = None # Will be set in the T5SummarizationModule dynamically
 train_range = 50000
 test_range = 5000
 val_range = 5000
@@ -62,10 +55,6 @@ class T5SummarizationModule(pl.LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
-        
-        global max_length
-        max_length = self.model.config.max_length
-        
         # This line to create a metric for tracking validation loss
         self.val_loss = MeanMetric()
 
