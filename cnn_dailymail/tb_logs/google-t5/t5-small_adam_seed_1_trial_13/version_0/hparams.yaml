@@ -1,0 +1,3 @@
+learning_rate: 7.274893923509087e-05
+model_name: google-t5/t5-small
+optimizer_name: adam
