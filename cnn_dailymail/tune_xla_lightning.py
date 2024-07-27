@@ -36,8 +36,8 @@ max_length = {
     "2": 768,
     "3": 1024
 }
-model_name = "google-t5/t5-small"
-max_length = 512
+model_name = "google-t5/t5-base"
+max_length = 768
 dataset_name = "cnn_dailymail"
 seed_num = args.seed
 train_range = 50000
@@ -264,7 +264,7 @@ def main():
         study_name=f"{model_name}_{optimizer_name}_with_seed_{seed_num}", 
         load_if_exists=True
     )
-    study.optimize(objective, n_trials=3, timeout=3600)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=30, timeout=3600)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
