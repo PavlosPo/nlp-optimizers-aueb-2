@@ -36,8 +36,8 @@ max_length = {
     "2": 768,
     "3": 1024
 }
-model_name = "google-t5/t5-base"
-max_length = 768
+model_name = "google-t5/t5-small"
+max_length = 512
 dataset_name = "cnn_dailymail"
 seed_num = args.seed
 train_range = 50000

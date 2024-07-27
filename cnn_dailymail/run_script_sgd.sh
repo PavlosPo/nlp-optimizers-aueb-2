@@ -49,7 +49,7 @@ sleep 10
 
 # Run the Python script with the Fourth set of arguments
 echo "Running fourth configuration..."
-pytho tune_xla_lightning.py --seed $seed4 --optim $optim --batch_size $batch_size
+python tune_xla_lightning.py --seed $seed4 --optim $optim --batch_size $batch_size
 
 # Wait for the Python script to finish
 wait
