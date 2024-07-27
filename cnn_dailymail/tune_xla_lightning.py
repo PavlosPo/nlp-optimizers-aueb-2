@@ -40,10 +40,10 @@ model_name = "google-t5/t5-small"
 max_length = 512
 dataset_name = "cnn_dailymail"
 seed_num = args.seed
-train_range = 50000
-test_range = 5000
-val_range = 5000
-epochs = 10
+train_range = 35000
+test_range = 3500
+val_range = 3500
+epochs = 5
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
