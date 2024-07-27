@@ -6,33 +6,22 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
 from datasets import load_dataset
-from torchmetrics.text.rouge import ROUGEScore
-from torchmetrics.text.bert import BERTScore
 from torchmetrics import MeanMetric
 import optuna
-from optuna.integration import PyTorchLightningPruningCallback
 from optuna.storages import RDBStorage
 import os
 import argparse
 from icecream import ic
 import numpy as np
-from dotenv import load_dotenv # for optuna database link
 import gc
 
-
-# Load environment variables from .env file
-load_dotenv()
-
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
-# db_url = os.getenv("AMAZON_DB_CONN_STRING") + "optuna_db_lr_only"
-# if db_url and db_url.startswith("postgres://"):
-#     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
 name_of_database_based_on_server_name = os.getenv("SERVER_NAME")
 db_url = f"sqlite:///{name_of_database_based_on_server_name}.db"
 
 parser = argparse.ArgumentParser()
-# parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
+parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
 parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
 parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
 args = parser.parse_args()
@@ -56,13 +45,12 @@ max_length = max_length.get(model_size, 512)
 if model_size not in model_names:
     print("Invalid model size. Using small model.")
 dataset_name = "cnn_dailymail"
-# seed_num = args.seed
-seed_num = (1, 10, 100, 1000)
+seed_num = args.seed
 max_length = None # Will be set in the T5SummarizationModule dynamically
-train_range = 1000
-test_range = 500
-val_range = 500
-epochs = 1
+train_range = 50000
+test_range = 5000
+val_range = 5000
+epochs = 10
 learning_rate_range = (1e-7, 1e-3)
 batch_size = args.batch_size
 
@@ -228,60 +216,55 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 
 # Define the objective function for Optuna
 def objective(trial):
-    try:
-        # Define hyperparameters to optimize
-        learning_rate = trial.suggest_float("learning_rate",learning_rate_range[0],learning_rate_range[1], log=True)
-        
-        pl.seed_everything(current_seed_num)
-        model = T5SummarizationModule(
-            model_name=model_name,
-            learning_rate=learning_rate,
-            optimizer_name=optimizer_name
-        )
-        
-        data_module = T5SummarizationDataModule(
-            model_name=model_name,
-            dataset_name=dataset_name,
-            max_length=max_length,
-            batch_size=batch_size,
-            train_range=train_range,
-            val_range=val_range,
-            test_range=test_range,
-            seed_num=current_seed_num
-        )
-        
-        logger = TensorBoardLogger("tb_logs", name=f"{model_name}_{optimizer_name}_seed_{current_seed_num}_trial_{trial.number}")
-        
-        checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{current_seed_num}_trial_{trial.number}", 
-                                              monitor="val_loss", 
-                                              mode="min",
-                                              save_top_k=1)
-        
-        trainer = pl.Trainer(
-            max_epochs=epochs,
-            logger=logger,
-            callbacks=[checkpoint_callback],
-            log_every_n_steps=1,
-            val_check_interval=0.3,
-            num_sanity_val_steps=0,
-            accelerator='auto',
-            devices='auto',
-        )
-        hyperparameters = dict(learning_rate=learning_rate)
-        trainer.logger.log_hyperparams(hyperparameters)
-        trainer.fit(model, datamodule=data_module)
-        
-        val_loss = trainer.callback_metrics['val_loss'].item()
-        
-        return val_loss
-    except Exception as e:
-        print(f"Error in trial {trial.number}: {str(e)}")
-        with open("error_log.txt", "a") as f:
-            f.write(f"Error in trial {trial.number}:\n{str(e)}\n")
-        return e
+    # Define hyperparameters to optimize
+    learning_rate = trial.suggest_float("learning_rate",learning_rate_range[0],learning_rate_range[1], log=True)
+    
+    pl.seed_everything(seed_num)
+    model = T5SummarizationModule(
+        model_name=model_name,
+        learning_rate=learning_rate,
+        optimizer_name=optimizer_name
+    )
+    
+    data_module = T5SummarizationDataModule(
+        model_name=model_name,
+        dataset_name=dataset_name,
+        max_length=max_length,
+        batch_size=batch_size,
+        train_range=train_range,
+        val_range=val_range,
+        test_range=test_range,
+        seed_num=seed_num
+    )
+    
+    logger = TensorBoardLogger("tb_logs", 
+                               name=f"{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}")
+    
+    checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}", 
+                                            monitor="val_loss", 
+                                            mode="min",
+                                            save_top_k=1)
+    
+    trainer = pl.Trainer(
+        max_epochs=epochs,
+        logger=logger,
+        callbacks=[checkpoint_callback],
+        log_every_n_steps=1,
+        val_check_interval=0.3,
+        num_sanity_val_steps=0,
+        accelerator='auto',
+        devices='auto',
+    )
+    hyperparameters = dict(learning_rate=learning_rate)
+    trainer.logger.log_hyperparams(hyperparameters)
+    trainer.fit(model, datamodule=data_module)
+    
+    val_loss = trainer.callback_metrics['val_loss'].item()
+    
+    return val_loss
 
 
-def main(current_seed_num):
+def main():
     # Set up the SQLite database storage
     storage = RDBStorage(url=db_url)
     
@@ -289,7 +272,7 @@ def main(current_seed_num):
     study = optuna.create_study(
         direction="minimize", 
         storage=storage, 
-        study_name=f"{model_name}_{optimizer_name}_with_seed_{current_seed_num}", 
+        study_name=f"{model_name}_{optimizer_name}_with_seed_{seed_num}", 
         load_if_exists=True
     )
     study.optimize(objective, n_trials=3, timeout=3600)  # Adjust n_trials as needed
@@ -308,13 +291,13 @@ def main(current_seed_num):
         "hypertuning_results_lr_tuning",
         model_name.replace("/", "_"),
         optimizer_name,
-        f"seed_{current_seed_num}"
+        f"seed_{seed_num}"
     )
     os.makedirs(output_dir, exist_ok=True)
     result_file = os.path.join(output_dir, "best_hyperparameters.txt")
     
     with open(result_file, "w") as f:
-        f.write(f"Seed: {current_seed_num}\n")
+        f.write(f"Seed: {seed_num}\n")
         f.write(f"Model: {model_name}\n")
         f.write(f"Dataset: {dataset_name}\n")
         f.write(f"Optimizer: {optimizer_name}\n")
@@ -329,7 +312,4 @@ def main(current_seed_num):
         f.write(f"  learning_rate: {learning_rate_range}\n")
 
 if __name__ == "__main__":
-    for current_seed_num in seed_num:
-        print(f"Current seed: {current_seed_num}")
-        main(current_seed_num)
-        print("---" * 20)
+    main()
