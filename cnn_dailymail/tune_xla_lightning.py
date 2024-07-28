@@ -264,17 +264,11 @@ def main():
         study_name=f"{model_name}_{optimizer_name}_with_seed_{seed_num}", 
         load_if_exists=True
     )
-    study.optimize(objective, n_trials=30, timeout=3600)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=30)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
     
-    print(" Value: ", trial.value)
-    print(" Params: ")
-    for key, value in trial.params.items():
-        print(f" {key}: {value}")
-    
-
     # Define the output directory structure
     output_dir = os.path.join(
         "hypertuning_results_lr_tuning",
