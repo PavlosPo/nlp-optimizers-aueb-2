@@ -11,6 +11,9 @@ import optuna
 from optuna.storages import RDBStorage
 import os
 import argparse
+from dotenv import load_dotenv
+
+load_dotenv()
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
