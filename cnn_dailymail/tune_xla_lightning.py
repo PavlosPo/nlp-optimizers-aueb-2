@@ -122,8 +122,12 @@ class T5SummarizationModule(pl.LightningModule):
             return torch.optim.Adadelta(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "rmsprop":
             return torch.optim.RMSprop(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "rprop":
+            return torch.optim.Rprop(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "adamax":
             return torch.optim.Adamax(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "adabound":
+            return torch.optim.AdaBound(self.parameters(), lr=self.learning_rate)
         # elif self.optimizer_name == "novograd":
         #     return NovoGrad(self.parameters(), lr=self.learning_rate)
         # elif self.optimizer_name == "radam":
