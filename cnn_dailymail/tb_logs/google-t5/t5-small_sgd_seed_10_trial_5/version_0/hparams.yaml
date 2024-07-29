@@ -1,0 +1,3 @@
+learning_rate: 4.655353597688132e-06
+model_name: google-t5/t5-small
+optimizer_name: sgd
