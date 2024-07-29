@@ -111,8 +111,30 @@ class T5SummarizationModule(pl.LightningModule):
             return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "sgd":
             return torch.optim.SGD(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "sgdm":
+            # Default Momentum 0.9
+            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=0.9)
         elif self.optimizer_name == "adam":
             return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "adagrad":
+            return torch.optim.Adagrad(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "adadelta":
+            return torch.optim.Adadelta(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "rmsprop":
+            return torch.optim.RMSprop(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "rprop":
+            return torch.optim.Rprop(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "adamax":
+            return torch.optim.Adamax(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "adabound":
+            return torch.optim.AdaBound(self.parameters(), lr=self.learning_rate)
+        # elif self.optimizer_name == "novograd":
+        #     return NovoGrad(self.parameters(), lr=self.learning_rate)
+        # elif self.optimizer_name == "radam":
+        #     return RAdam(self.parameters(), lr=self.learning_rate)
+        # elif self.optimizer_name == "lookahead":
+        #     return Lookahead(self.parameters(), k=5, alpha=0.5)
+            
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
         

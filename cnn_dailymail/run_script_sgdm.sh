@@ -2,7 +2,7 @@
 
 # First set of arguments
 seed1=1
-optim="adamw"
+optim="sgdm"
 batch_size=16
 
 # Second set of arguments
