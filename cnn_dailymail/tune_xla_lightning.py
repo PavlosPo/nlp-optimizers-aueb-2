@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
 from datasets import load_dataset
 from torchmetrics import MeanMetric
+import torch_optimizer as t_optim
 import optuna
 from optuna.storages import RDBStorage
 import os
@@ -127,7 +128,7 @@ class T5SummarizationModule(pl.LightningModule):
         elif self.optimizer_name == "adamax":
             return torch.optim.Adamax(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "adabound":
-            return torch.optim.AdaBound(self.parameters(), lr=self.learning_rate)
+            return t_optim.AdaBound(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "nadam":
             return torch.optim.NAdam(self.parameters(), lr=self.learning_rate)
         else:
