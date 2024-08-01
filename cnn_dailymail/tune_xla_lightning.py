@@ -128,13 +128,8 @@ class T5SummarizationModule(pl.LightningModule):
             return torch.optim.Adamax(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "adabound":
             return torch.optim.AdaBound(self.parameters(), lr=self.learning_rate)
-        # elif self.optimizer_name == "novograd":
-        #     return NovoGrad(self.parameters(), lr=self.learning_rate)
-        # elif self.optimizer_name == "radam":
-        #     return RAdam(self.parameters(), lr=self.learning_rate)
-        # elif self.optimizer_name == "lookahead":
-        #     return Lookahead(self.parameters(), k=5, alpha=0.5)
-            
+        elif self.optimizer_name == "nadam":
+            return torch.optim.NAdam(self.parameters(), lr=self.learning_rate)
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
         
