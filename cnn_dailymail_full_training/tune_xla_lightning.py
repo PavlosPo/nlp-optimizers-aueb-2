@@ -117,6 +117,8 @@ class T5SummarizationModule(pl.LightningModule):
             return torch.optim.AdamW(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "sgd":
             return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+        elif self.optimizer_name == "sgdm": # Momentum will be added later in the '**self.optimizer_params' kwargs
+            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adam":
             return torch.optim.Adam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "nadam":
