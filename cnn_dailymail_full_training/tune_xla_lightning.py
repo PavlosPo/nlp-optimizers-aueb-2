@@ -9,6 +9,7 @@ from datasets import load_dataset
 from torchmetrics import MeanMetric
 import optuna
 from optuna.storages import RDBStorage
+import torch_optimizer as t_optim
 import os
 import argparse
 from dotenv import load_dotenv
@@ -121,12 +122,16 @@ class T5SummarizationModule(pl.LightningModule):
             return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adam":
             return torch.optim.Adam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+        elif self.optimizer_name == "adamax":
+            return torch.optim.Adamax(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "nadam":
             return torch.optim.NAdam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adagrad":
             return torch.optim.Adagrad(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adadelta":
             return torch.optim.Adadelta(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+        elif self.optimizer_name == "adabound":
+            return t_optim.AdaBound(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "rmsprop":
             return torch.optim.RMSprop(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         else:
@@ -265,12 +270,12 @@ def objective(trial):
             trial.suggest_float("nadam_beta1", betas_range["beta1"][0], betas_range["beta1"][1]),
             trial.suggest_float("nadam_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
         )
-        optimizer_params["eps"] = trial.suggest_float("adam_epsilon", eps_range[0], eps_range[1], log=True)
+        optimizer_params["eps"] = trial.suggest_float("nadam_epsilon", eps_range[0], eps_range[1], log=True)
         optimizer_params["momentum_decay"] = trial.suggest_float("momentum_decay", nadam_momentum_range[0], nadam_momentum_range[1])
     elif optimizer_name == "adabound" :
         optimizer_params["betas"] = (
             trial.suggest_float("adabound_beta1", betas_range["beta1"][0], betas_range["beta1"][1]),
-            trial.suggest_float("adaboun_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
+            trial.suggest_float("adabound_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
         )
         optimizer_params['eps'] = trial.suggest_float("eps", eps_range[0], eps_range[1], log=True)
         optimizer_params["gamma"] = trial.suggest_float("gamma", adabound_gamma[0], adabound_gamma[1])
