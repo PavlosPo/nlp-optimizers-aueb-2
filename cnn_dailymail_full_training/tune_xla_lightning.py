@@ -226,7 +226,6 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 def objective(trial):
     # Define hyperparameters to optimize
     learning_rate = trial.suggest_float("learning_rate",learning_rate_range[0],learning_rate_range[1], log=True)
-    pl.seed_everything(seed_num)
     
     optimizer_params = {}
     if optimizer_name == "adamw":
