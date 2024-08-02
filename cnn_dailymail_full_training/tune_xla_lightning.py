@@ -55,7 +55,7 @@ betas_range = {
 eps_range = (1e-9, 1e-7)
 nadam_momentum_range = (1e-4, 1e-2)
 sgdm_momentum_range = (0.7, 0.99999)
-adabound_lr_decay = (1e-4, 2e-3)
+adabound_gamma = (1e-4, 2e-3)
 adabound_final_lr = (1e-2, 1e-1)
 adabound_weight_decay = (1e-2, 1e-1)
 batch_size = args.batch_size
@@ -272,7 +272,7 @@ def objective(trial):
             trial.suggest_float("adaboun_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
         )
         optimizer_params['eps'] = trial.suggest_float("eps", eps_range[0], eps_range[1], log=True)
-        optimizer_params["lr_decay"] = trial.suggest_float("lr_decay", adabound_lr_decay[0], adabound_lr_decay[1])
+        optimizer_params["gamma"] = trial.suggest_float("gamma", adabound_gamma[0], adabound_gamma[1])
         optimizer_params["final_lr"] = trial.suggest_float("final_lr", adabound_final_lr[0], adabound_final_lr[1])
         optimizer_params["weight_decay"] = trial.suggest_float("weight_decay",adabound_weight_decay[0], adabound_weight_decay[1] , log=True)
     
@@ -368,7 +368,7 @@ def main():
         f.write(f"  beta2: ({betas_range['beta2'][0]}, {betas_range['beta2'][1]})\n")
         f.write(f"  eps: {eps_range}\n")
         if optimizer_name == "adabound":
-            f.write(f"  lr_decay: {adabound_lr_decay}\n")
+            f.write(f"  gamma: {adabound_gamma}\n")
             f.write(f"  final_lr: {adabound_final_lr}\n")
             f.write(f"  weight_decay: {adabound_weight_decay}\n")
         if optimizer_name == "nadam":
