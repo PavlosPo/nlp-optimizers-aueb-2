@@ -173,6 +173,13 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         if stage == 'test' or stage is None:
             self.test_dataset = self._get_or_process_dataset('test')
             
+        print(f"Setup complete. Datasets sizes: Train: {len(self.train_dataset)}, Val: {len(self.val_dataset)}, Test: {len(self.test_dataset)}")
+        # Set global length for train, val, and test datasets, to save in the output file after hyperparameter tuning
+        global train_range, val_range, test_range
+        train_range = len(self.train_dataset)
+        val_range = len(self.val_dataset)
+        test_range = len(self.test_dataset)
+            
     def _get_or_process_dataset(self, split):
         cache_file = os.path.join(self.cache_dir, f"{split}_{self.seed_num}.pkl")
         

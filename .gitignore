@@ -4,6 +4,8 @@
 # Ignore checkpoints
 **/checkpoint**
 
+**/dataset_cache_**/**
+
 **/wandb/**
 
 # Byte-compiled / optimized / DLL files
