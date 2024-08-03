@@ -44,10 +44,10 @@ max_length = 512
 dataset_name = "facebook/flores"
 
 seed_num = args.seed
-train_range = 35000
-test_range = 3500
-val_range = 3500
-epochs = 5
+train_range = 16
+test_range = 16
+val_range = 16
+epochs = 1
 batch_size = args.batch_size
 source_language = "English"
 
@@ -55,7 +55,8 @@ target_language = "German"
 target_language2 = "French"
 target_language3 = "Romanian"
 # https://github.com/facebookresearch/flores/blob/main/flores200/README.md
-language_to_choose = ["eng_Latn", "deu_Latn", "fra_Latn", "ron_Latn"] # English, German, French, Romanian
+# Do not put English, already retrieved as the input of the model.
+language_to_choose = ["deu_Latn", "fra_Latn", "ron_Latn"] # German, French, Romanian
 
 learning_rate_range = (1e-7, 1e-3)
 
@@ -264,8 +265,7 @@ def objective(trial):
         val_range=val_range,
         test_range=test_range,
         seed_num=seed_num,
-        source_lang=source_language,
-        target_lang=target_language
+        languages=language_to_choose
     )
     
     logger = TensorBoardLogger("tb_logs", 
