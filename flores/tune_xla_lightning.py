@@ -44,10 +44,10 @@ max_length = 512
 dataset_name = "facebook/flores"
 
 seed_num = args.seed
-train_range = 16
-test_range = 16
-val_range = 16
-epochs = 1
+train_range = 1000
+test_range = 1000
+val_range = 1000
+epochs = 5
 batch_size = args.batch_size
 n_trials = 30
 # https://github.com/facebookresearch/flores/blob/main/flores200/README.md
@@ -163,6 +163,11 @@ class T5TranslationDataModule(pl.LightningDataModule):
             self.test_datasets = self._get_or_process_dataset('test')
         
         print(f"Setup complete. Datasets sizes: Train: {len(self.train_datasets)}, Val: {len(self.val_datasets)}, Test: {len(self.test_datasets)}")
+        # Set global length for train, val, and test datasets, to save in the output file after hyperparameter tuning
+        global train_range, val_range, test_range
+        train_range = len(self.train_datasets)
+        val_range = len(self.val_datasets)
+        test_range = len(self.test_datasets)
 
     def _get_or_process_dataset(self, split):
         # Create combined dataset from all language pairs
