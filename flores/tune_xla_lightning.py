@@ -49,11 +49,7 @@ test_range = 16
 val_range = 16
 epochs = 1
 batch_size = args.batch_size
-source_language = "English"
-
-target_language = "German"
-target_language2 = "French"
-target_language3 = "Romanian"
+n_trials = 30
 # https://github.com/facebookresearch/flores/blob/main/flores200/README.md
 # Do not put English, already retrieved as the input of the model.
 language_to_choose = ["deu_Latn", "fra_Latn", "ron_Latn"] # German, French, Romanian
@@ -172,7 +168,15 @@ class T5TranslationDataModule(pl.LightningDataModule):
         # Create combined dataset from all language pairs
         combined_dataset = []
         
-        for language in self.languages:
+        for language in self.languages: 
+            """
+            This loop runs once per language code.
+            Each language code creates a cache file with the same name in the cache directory.
+            If the cache file exists, the dataset is loaded from the cache file.
+            If the cache file does not exist, the dataset is loaded from the original dataset and saved in the cache file.
+            The dataset is then added to the combined dataset in order to return the combined dataset with all the language 
+            pairs that have been set in the 'language_to_choose' list.
+            """
             cache_file = os.path.join(self.cache_dir, f"{split}_{language}_{self.seed_num}.pkl")
             
             if os.path.exists(cache_file):
@@ -204,6 +208,22 @@ class T5TranslationDataModule(pl.LightningDataModule):
         return combined_dataset
     
     def _preprocess_dataset(self, dataset, target_language):
+        """
+        Preprocess the dataset by mapping the language codes to their corresponding names.
+        For example, "deu_Latn" maps to "German" in the German dataset. 
+        This is given in the link: 
+        https://github.com/facebookresearch/flores/blob/main/flores200/README.md
+        
+        The function also maps the target language code to the corresponding name.
+        The function returns the preprocessed dataset.
+
+        Args:
+            dataset (_dataset_): The dataset to preprocess. 
+            target_language (str): The target language code.
+
+        Returns:
+            _dataset_: The preprocessed dataset.
+        """
         mapping = {
             "deu_Latn": "German",
             "fra_Latn": "French",
@@ -212,9 +232,17 @@ class T5TranslationDataModule(pl.LightningDataModule):
         target_lang_name = mapping[target_language]
 
         def preprocess_function(examples):
+            """
+            Internal function to preprocess the dataset.
+            """
             model_inputs = {"input_ids": [], "attention_mask": [], "labels": []}
 
             for i in range(len(examples['sentence_eng_Latn'])):
+                """
+                This loop runs once per sentence in the dataset.
+                The sentence is mapped to the given target language name and the target text is mapped to the corresponding language code.
+                The function returns the model inputs.
+                """
                 prefix = f"translate English to {target_lang_name}: "
                 input_text = prefix + examples['sentence_eng_Latn'][i]
                 target_text = examples[f'sentence_{target_language}'][i]
@@ -306,7 +334,7 @@ def main():
         study_name=f"{model_name}_{optimizer_name}_with_seed_{seed_num}", 
         load_if_exists=True
     )
-    study.optimize(objective, n_trials=30)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=n_trials)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
@@ -326,8 +354,6 @@ def main():
         f.write(f"Model: {model_name}\n")
         f.write(f"Dataset: {dataset_name}\n")
         f.write(f"Optimizer: {optimizer_name}\n")
-        f.write(f"Source Language: {source_lang}\n")
-        f.write(f"Target Language: {target_lang}\n")
         f.write(f'Training range: {train_range}\n')
         f.write(f'Test range: {test_range}\n')
         f.write(f'Validation range: {val_range}\n')
