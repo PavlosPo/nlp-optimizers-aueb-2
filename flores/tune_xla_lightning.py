@@ -1,10 +1,9 @@
 import torch
+import torch_optimizer as t_optim
 import pickle
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
-# Import PytorchLightningPruning callback
-from optuna.integration import PyTorchLightningPruningCallback
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
 from datasets import load_dataset
@@ -125,7 +124,7 @@ class T5TranslationModule(pl.LightningModule):
         elif self.optimizer_name == "adamax":
             return torch.optim.Adamax(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "adabound":
-            return torch.optim.AdaBound(self.parameters(), lr=self.learning_rate)
+            return t_optim.AdaBound(self.parameters(), lr=self.learning_rate)
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
 
@@ -214,7 +213,7 @@ class T5TranslationDataModule(pl.LightningDataModule):
         
         return combined_dataset
     
-    def _preprocess_dataset(self, dataset, target_language):
+    def _preprocess_dataset(self, dataset, target_language_code):
         """
         Preprocess the dataset by mapping the language codes to their corresponding names.
         For example, "deu_Latn" maps to "German" in the German dataset. 
@@ -226,7 +225,7 @@ class T5TranslationDataModule(pl.LightningDataModule):
 
         Args:
             dataset (_dataset_): The dataset to preprocess. 
-            target_language (str): The target language code.
+            target_language_code (str): The target language code.
 
         Returns:
             _dataset_: The preprocessed dataset.
@@ -236,7 +235,7 @@ class T5TranslationDataModule(pl.LightningDataModule):
             "fra_Latn": "French",
             "ron_Latn": "Romanian"
         }
-        target_lang_name = mapping[target_language]
+        target_lang_name = mapping[target_language_code]
 
         def preprocess_function(examples):
             """
@@ -252,7 +251,7 @@ class T5TranslationDataModule(pl.LightningDataModule):
                 """
                 prefix = f"translate English to {target_lang_name}: "
                 input_text = prefix + examples['sentence_eng_Latn'][i]
-                target_text = examples[f'sentence_{target_language}'][i]
+                target_text = examples[f'sentence_{target_language_code}'][i]
                 
                 tokenized_input = self.tokenizer(input_text, max_length=self.max_length, padding="max_length", truncation=True)
                 tokenized_target = self.tokenizer(target_text, max_length=self.max_length, padding="max_length", truncation=True)
@@ -343,7 +342,6 @@ def main():
     )
     study.optimize(objective, n_trials=n_trials)  # Adjust n_trials as needed
     
-    print("Best trial:")
     trial = study.best_trial
     
     # Define the output directory structure
