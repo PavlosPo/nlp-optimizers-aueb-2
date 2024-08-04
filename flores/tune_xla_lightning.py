@@ -3,6 +3,8 @@ import pickle
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
+# Import PytorchLightningPruning callback
+from optuna.integration import PyTorchLightningPruningCallback
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
 from datasets import load_dataset
@@ -304,15 +306,15 @@ def objective(trial):
     logger = TensorBoardLogger("tb_logs", 
                                name=f"{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}")
     
-    checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}", 
-                                            monitor="val_loss", 
-                                            mode="min",
-                                            save_top_k=1)
+    # checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}", 
+    #                                         monitor="val_loss", 
+    #                                         mode="min",
+    #                                         save_top_k=1)
     
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=logger,
-        callbacks=[checkpoint_callback],
+        callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
         log_every_n_steps=1,
         val_check_interval=0.3,
         num_sanity_val_steps=0,
