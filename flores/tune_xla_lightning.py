@@ -149,7 +149,7 @@ class T5TranslationDataModule(pl.LightningDataModule):
         self.cache_dir = f"./dataset_cache_{self.seed_num}"
 
     def prepare_data(self):
-        load_dataset(self.dataset_name, 'all').shuffle(seed=self.seed_num)
+        load_dataset(self.dataset_name, 'all', trust_remote_code=True).shuffle(seed=self.seed_num)
         AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage=None):
@@ -191,7 +191,7 @@ class T5TranslationDataModule(pl.LightningDataModule):
                 print(f"Loaded {split} dataset for {language} with {len(dataset)} samples")
             else:
                 print(f"Processing {split} dataset for {language}...")
-                dataset = load_dataset(self.dataset_name, 'all')['dev'].shuffle(seed=self.seed_num)
+                dataset = load_dataset(self.dataset_name, 'all',  trust_remote_code=True)['dev'].shuffle(seed=self.seed_num)
                 
                 if split == 'train':
                     data = dataset.select(range(min(self.train_range, len(dataset))))

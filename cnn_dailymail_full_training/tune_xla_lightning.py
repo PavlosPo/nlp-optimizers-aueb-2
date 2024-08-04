@@ -159,7 +159,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 
     def prepare_data(self):
         # Downloading data, called only once on 1 GPU/TPU in distributed settings
-        load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
+        load_dataset(self.dataset_name, '3.0.0',  trust_remote_code=True).shuffle(seed=self.seed_num)
         AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage):
@@ -190,7 +190,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
                 return pickle.load(f)
         
         print(f"Processing {split} dataset...")
-        dataset = load_dataset(self.dataset_name, '3.0.0').shuffle(seed=self.seed_num)
+        dataset = load_dataset(self.dataset_name, '3.0.0',  trust_remote_code=True).shuffle(seed=self.seed_num)
         
         if split == 'train':
             data = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
