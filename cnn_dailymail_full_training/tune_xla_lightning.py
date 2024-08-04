@@ -48,6 +48,7 @@ train_range = 35000
 test_range = 3500
 val_range = 3500
 epochs = 5
+n_trials = 30
 learning_rate_range = (1e-7, 1e-3)
 betas_range = {
             "beta1" : (0.8, 0.95),
@@ -173,12 +174,12 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         if stage == 'test' or stage is None:
             self.test_dataset = self._get_or_process_dataset('test')
             
-        print(f"Setup complete. Datasets sizes: Train: {len(self.train_dataset)}, Val: {len(self.val_dataset)}, Test: {len(self.test_dataset)}")
-        # Set global length for train, val, and test datasets, to save in the output file after hyperparameter tuning
-        global train_range, val_range, test_range
-        train_range = len(self.train_dataset)
-        val_range = len(self.val_dataset)
-        test_range = len(self.test_dataset)
+        # print(f"Setup complete. Datasets sizes: Train: {len(self.train_dataset)}, Val: {len(self.val_dataset)}, Test: {len(self.test_dataset)}")
+        # # Set global length for train, val, and test datasets, to save in the output file after hyperparameter tuning
+        # global train_range, val_range, test_range
+        # train_range = len(self.train_dataset)
+        # val_range = len(self.val_dataset)
+        # test_range = len(self.test_dataset)
             
     def _get_or_process_dataset(self, split):
         cache_file = os.path.join(self.cache_dir, f"{split}_{self.seed_num}.pkl")
@@ -348,7 +349,7 @@ def main():
         study_name=f"full_training_{model_name}_{optimizer_name}_with_seed_{seed_num}", 
         load_if_exists=True
     )
-    study.optimize(objective, n_trials=30)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=n_trials)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
