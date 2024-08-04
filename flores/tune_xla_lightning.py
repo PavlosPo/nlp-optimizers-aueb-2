@@ -67,6 +67,7 @@ class T5TranslationModule(pl.LightningModule):
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
         self.val_loss = MeanMetric()
+        self._best_val_loss = None
 
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -90,6 +91,8 @@ class T5TranslationModule(pl.LightningModule):
     
     def on_validation_epoch_end(self):
         avg_loss = self.val_loss.compute()
+        if self._best_val_loss is None or avg_loss < self._best_val_loss:
+            self._best_val_loss = avg_loss
         self.log("val_loss", avg_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         self.val_loss.reset()
 
@@ -128,6 +131,9 @@ class T5TranslationModule(pl.LightningModule):
             return torch.optim.AdaBound(self.parameters(), lr=self.learning_rate)
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
+        
+    def get_best_val_loss(self):
+        return self._best_val_loss
 
 class T5TranslationDataModule(pl.LightningDataModule):
     def __init__(self, model_name, dataset_name, max_length, 
@@ -306,15 +312,15 @@ def objective(trial):
     logger = TensorBoardLogger("tb_logs", 
                                name=f"{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}")
     
-    # checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}", 
-    #                                         monitor="val_loss", 
-    #                                         mode="min",
-    #                                         save_top_k=1)
+    checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}", 
+                                            monitor="val_loss", 
+                                            mode="min",
+                                            save_top_k=1)
     
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=logger,
-        callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
+        callbacks=[checkpoint_callback],
         log_every_n_steps=1,
         val_check_interval=0.3,
         num_sanity_val_steps=0,
@@ -326,6 +332,8 @@ def objective(trial):
     trainer.fit(model, datamodule=data_module)
     
     val_loss = trainer.callback_metrics['val_loss'].item()
+    print(f"Validation loss using callback: {val_loss}\n")
+    print(f"Validation loss using model class: {model.get_best_val_loss()}\n")
     
     return val_loss
 
