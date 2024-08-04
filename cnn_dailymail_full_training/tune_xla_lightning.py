@@ -9,6 +9,7 @@ from datasets import load_dataset
 from torchmetrics import MeanMetric
 import optuna
 from optuna.storages import RDBStorage
+import torch_optimizer as t_optim
 import os
 import argparse
 from dotenv import load_dotenv
@@ -47,6 +48,7 @@ train_range = 35000
 test_range = 3500
 val_range = 3500
 epochs = 5
+n_trials = 30
 learning_rate_range = (1e-7, 1e-3)
 betas_range = {
             "beta1" : (0.8, 0.95),
@@ -121,12 +123,16 @@ class T5SummarizationModule(pl.LightningModule):
             return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adam":
             return torch.optim.Adam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+        elif self.optimizer_name == "adamax":
+            return torch.optim.Adamax(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "nadam":
             return torch.optim.NAdam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adagrad":
             return torch.optim.Adagrad(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adadelta":
             return torch.optim.Adadelta(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+        elif self.optimizer_name == "adabound":
+            return t_optim.AdaBound(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "rmsprop":
             return torch.optim.RMSprop(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         else:
@@ -167,6 +173,13 @@ class T5SummarizationDataModule(pl.LightningDataModule):
             self.val_dataset = self._get_or_process_dataset('val')
         if stage == 'test' or stage is None:
             self.test_dataset = self._get_or_process_dataset('test')
+            
+        # print(f"Setup complete. Datasets sizes: Train: {len(self.train_dataset)}, Val: {len(self.val_dataset)}, Test: {len(self.test_dataset)}")
+        # # Set global length for train, val, and test datasets, to save in the output file after hyperparameter tuning
+        # global train_range, val_range, test_range
+        # train_range = len(self.train_dataset)
+        # val_range = len(self.val_dataset)
+        # test_range = len(self.test_dataset)
             
     def _get_or_process_dataset(self, split):
         cache_file = os.path.join(self.cache_dir, f"{split}_{self.seed_num}.pkl")
@@ -226,7 +239,6 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 def objective(trial):
     # Define hyperparameters to optimize
     learning_rate = trial.suggest_float("learning_rate",learning_rate_range[0],learning_rate_range[1], log=True)
-    pl.seed_everything(seed_num)
     
     optimizer_params = {}
     if optimizer_name == "adamw":
@@ -266,12 +278,12 @@ def objective(trial):
             trial.suggest_float("nadam_beta1", betas_range["beta1"][0], betas_range["beta1"][1]),
             trial.suggest_float("nadam_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
         )
-        optimizer_params["eps"] = trial.suggest_float("adam_epsilon", eps_range[0], eps_range[1], log=True)
+        optimizer_params["eps"] = trial.suggest_float("nadam_epsilon", eps_range[0], eps_range[1], log=True)
         optimizer_params["momentum_decay"] = trial.suggest_float("momentum_decay", nadam_momentum_range[0], nadam_momentum_range[1])
     elif optimizer_name == "adabound" :
         optimizer_params["betas"] = (
             trial.suggest_float("adabound_beta1", betas_range["beta1"][0], betas_range["beta1"][1]),
-            trial.suggest_float("adaboun_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
+            trial.suggest_float("adabound_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
         )
         optimizer_params['eps'] = trial.suggest_float("eps", eps_range[0], eps_range[1], log=True)
         optimizer_params["gamma"] = trial.suggest_float("gamma", adabound_gamma[0], adabound_gamma[1])
@@ -337,7 +349,7 @@ def main():
         study_name=f"full_training_{model_name}_{optimizer_name}_with_seed_{seed_num}", 
         load_if_exists=True
     )
-    study.optimize(objective, n_trials=30)  # Adjust n_trials as needed
+    study.optimize(objective, n_trials=n_trials)  # Adjust n_trials as needed
     
     print("Best trial:")
     trial = study.best_trial
