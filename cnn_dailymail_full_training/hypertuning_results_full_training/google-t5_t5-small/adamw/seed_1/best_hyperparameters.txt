@@ -1,0 +1,18 @@
+Seed: 1
+Model: google-t5/t5-small
+Dataset: cnn_dailymail
+Optimizer: adamw
+Training range: 35000
+Test range: 3500
+Validation range: 3500
+Best Validation Loss: 0.2834843397140503
+Best Hyperparameters:
+learning_rate: 8.566072523306871e-05
+adamw_beta1: 0.8585080274132555
+adamw_beta2: 0.923265958146406
+adamw_epsilon: 3.899468472043745e-09
+Search Spaces:
+  learning_rate: (1e-07, 0.001)
+  beta1: (0.8, 0.95)
+  beta2: (0.9, 0.99999)
+  eps: (1e-09, 1e-07)
