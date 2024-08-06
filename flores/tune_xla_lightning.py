@@ -113,6 +113,8 @@ class T5TranslationModule(pl.LightningModule):
             return torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=0.9)
         elif self.optimizer_name == "adam":
             return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        elif self.optimizer_name == "nadam":
+            return torch.optim.NAdam(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "adagrad":
             return torch.optim.Adagrad(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "adadelta":
@@ -320,7 +322,7 @@ def objective(trial):
         accelerator='auto',
         devices='auto',
     )
-    hyperparameters = dict(learning_rate=learning_rate)
+    hyperparameters = dict(learning_rate=learning_rate, optimizer_name=optimizer_name)
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
     
