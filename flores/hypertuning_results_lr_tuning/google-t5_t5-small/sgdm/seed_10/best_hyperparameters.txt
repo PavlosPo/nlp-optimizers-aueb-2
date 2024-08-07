@@ -1,0 +1,12 @@
+Seed: 10
+Model: google-t5/t5-small
+Dataset: facebook/flores
+Optimizer: sgdm
+Training range: 1000
+Test range: 1000
+Validation range: 1000
+Best Validation Loss: 0.1488044261932373
+Best Hyperparameters:
+learning_rate: 8.32739329166473e-06
+Search Spaces:
+ learning_rate: (1e-07, 0.001)
