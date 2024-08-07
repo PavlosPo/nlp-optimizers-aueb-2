@@ -120,16 +120,10 @@ class T5SummarizationModule(pl.LightningModule):
             return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "adagrad":
             return torch.optim.Adagrad(self.parameters(), lr=self.learning_rate)
-        elif self.optimizer_name == "adadelta":
-            return torch.optim.Adadelta(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "rmsprop":
             return torch.optim.RMSprop(self.parameters(), lr=self.learning_rate)
-        elif self.optimizer_name == "rprop":
-            return torch.optim.Rprop(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "adamax":
             return torch.optim.Adamax(self.parameters(), lr=self.learning_rate)
-        elif self.optimizer_name == "adabound":
-            return t_optim.AdaBound(self.parameters(), lr=self.learning_rate)
         elif self.optimizer_name == "nadam":
             return torch.optim.NAdam(self.parameters(), lr=self.learning_rate)
         else:
