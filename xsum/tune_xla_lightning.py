@@ -266,8 +266,8 @@ def objective(trial):
         accelerator='auto',
         devices='auto',
     )
-    hyperparameters = dict(learning_rate=learning_rate)
-    trainer.logger.log_hyperparams(hyperparameters, optimizer_name=optimizer_name)
+    hyperparameters = dict(learning_rate=learning_rate, optimizer_name=optimizer_name)
+    trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
     
     val_loss = trainer.callback_metrics['val_loss'].item()
