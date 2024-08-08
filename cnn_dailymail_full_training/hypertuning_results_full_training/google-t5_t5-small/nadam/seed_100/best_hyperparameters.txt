@@ -5,13 +5,13 @@ Optimizer: nadam
 Training range: 35000
 Test range: 3500
 Validation range: 3500
-Best Validation Loss: 0.28500062227249146
+Best Validation Loss: 0.28429198265075684
 Best Hyperparameters:
-learning_rate: 0.00016613155432595853
-nadam_beta1: 0.9243286632256356
-nadam_beta2: 0.9844608113832571
-nadam_epsilon: 2.155709654737344e-08
-momentum_decay: 0.007916279657410322
+learning_rate: 8.531652129807939e-05
+nadam_beta1: 0.9064172312019325
+nadam_beta2: 0.9133585294902713
+nadam_epsilon: 4.3332077237141745e-09
+momentum_decay: 0.003300738145730392
 Search Spaces:
   learning_rate: (1e-07, 0.001)
   beta1: (0.8, 0.95)
