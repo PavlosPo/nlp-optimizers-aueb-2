@@ -273,7 +273,7 @@ def objective(trial):
         accelerator='auto',
         devices='auto',
     )
-    hyperparameters = dict(learning_rate=learning_rate)
+    hyperparameters = dict(learning_rate=learning_rate, optimizer_name=optimizer_name)
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
     

@@ -7,9 +7,9 @@ from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
 from datasets import load_dataset
 from torchmetrics import MeanMetric
-import torch_optimizer as t_optim
 import optuna
 from optuna.storages import RDBStorage
+import torch_optimizer as t_optim
 import os
 import argparse
 from dotenv import load_dotenv
@@ -19,7 +19,7 @@ load_dotenv()
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
 name_of_database_based_on_server_name = os.getenv("SERVER_NAME")
-db_url = f"sqlite:///{name_of_database_based_on_server_name}.db"
+db_url = f"sqlite:///{name_of_database_based_on_server_name}_full_training.db"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
@@ -50,18 +50,28 @@ val_range = 3000
 epochs = 5
 n_trials = 30
 learning_rate_range = (1e-7, 1e-3)
+betas_range = {
+            "beta1" : (0.8, 0.95),
+            "beta2" : (0.9, 0.99999)
+        }
+eps_range = (1e-9, 1e-7)
+nadam_momentum_range = (1e-4, 1e-2)
+sgdm_momentum_range = (0.7, 0.99999)
+adabound_gamma = (1e-4, 2e-3)
+adabound_final_lr = (1e-2, 1e-1)
+adabound_weight_decay = (1e-2, 1e-1)
 batch_size = args.batch_size
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw"):        
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw", **optimizer_params):        
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
-        # This line to create a metric for tracking validation loss
-        self.val_loss = MeanMetric()
+        self.optimizer_params = optimizer_params
+        self.val_loss = MeanMetric() # This line to create a metric for tracking validation loss
 
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -86,14 +96,10 @@ class T5SummarizationModule(pl.LightningModule):
         return loss
     
     def on_validation_epoch_end(self):
-        # Compute the mean validation loss for the epoch
-        avg_loss = self.val_loss.compute()
-        
+        avg_loss = self.val_loss.compute() # Compute the mean validation loss for the epoch
         # Log the epoch validation loss
         self.log("val_loss", avg_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
-        
-        # Reset the metric for the next epoch
-        self.val_loss.reset()
+        self.val_loss.reset() # Reset the metric for the next epoch
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
@@ -110,22 +116,25 @@ class T5SummarizationModule(pl.LightningModule):
 
     def _get_optimizer(self):
         if self.optimizer_name == "adamw":
-            return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
+            return torch.optim.AdamW(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "sgd":
-            return torch.optim.SGD(self.parameters(), lr=self.learning_rate)
-        elif self.optimizer_name == "sgdm":
-            # Default Momentum 0.9
-            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=0.9)
+            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+        elif self.optimizer_name == "sgdm": # Momentum will be added later in the '**self.optimizer_params' kwargs
+            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adam":
-            return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        elif self.optimizer_name == "adagrad":
-            return torch.optim.Adagrad(self.parameters(), lr=self.learning_rate)
-        elif self.optimizer_name == "rmsprop":
-            return torch.optim.RMSprop(self.parameters(), lr=self.learning_rate)
+            return torch.optim.Adam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adamax":
-            return torch.optim.Adamax(self.parameters(), lr=self.learning_rate)
+            return torch.optim.Adamax(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "nadam":
-            return torch.optim.NAdam(self.parameters(), lr=self.learning_rate)
+            return torch.optim.NAdam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+        elif self.optimizer_name == "adagrad":
+            return torch.optim.Adagrad(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+        elif self.optimizer_name == "adadelta":
+            return torch.optim.Adadelta(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+        elif self.optimizer_name == "adabound":
+            return t_optim.AdaBound(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+        elif self.optimizer_name == "rmsprop":
+            return torch.optim.RMSprop(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
         
@@ -221,11 +230,62 @@ def objective(trial):
     # Define hyperparameters to optimize
     learning_rate = trial.suggest_float("learning_rate",learning_rate_range[0],learning_rate_range[1], log=True)
     
+    optimizer_params = {}
+    if optimizer_name == "adamw":
+        optimizer_params["betas"] = (
+            trial.suggest_float("adamw_beta1", betas_range['beta1'][0], betas_range['beta1'][1]),
+            trial.suggest_float("adamw_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
+        )
+        optimizer_params["eps"] = trial.suggest_float("adamw_epsilon", eps_range[0], eps_range[1], log=True)
+    elif optimizer_name == "sgd":
+        pass
+    elif optimizer_name == "sgdm":
+        optimizer_params["momentum"] = trial.suggest_float("momentum", sgdm_momentum_range[0], sgdm_momentum_range[1])
+    elif optimizer_name == "adam":
+        optimizer_params["betas"] = (
+            trial.suggest_float("adam_beta1", betas_range['beta1'][0], betas_range['beta1'][1]),
+            trial.suggest_float("adam_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
+        )
+        optimizer_params["eps"] = trial.suggest_float("adam_epsilon", eps_range[0], eps_range[1], log=True)
+    # elif optimizer_name == "adagrad": # TODO: Fill this correctly
+    #     optimizer_params["lr_decay"] = trial.suggest_float("lr_decay", 0, 1)
+    #     optimizer_params["weight_decay"] = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+    # elif optimizer_name == "adadelta": # TODO: Fill this correctly
+    #     optimizer_params["rho"] = trial.suggest_float("rho", 0, 1)
+    #     optimizer_params["eps"] = trial.suggest_float("epsilon", 1e-8, 1e-6, log=True)
+    # elif optimizer_name == "rmsprop": # TODO: Fill this correctly
+    #     optimizer_params["alpha"] = trial.suggest_float("alpha", 0, 1)
+    #     optimizer_params["momentum"] = trial.suggest_float("momentum", 0, 1)
+    #     optimizer_params["eps"] = trial.suggest_float("epsilon", 1e-8, 1e-6, log=True)
+    elif optimizer_name == "adamax": 
+        optimizer_params["betas"] = (
+            trial.suggest_float("adamax_beta1", betas_range["beta1"][0], betas_range["beta1"][1]),
+            trial.suggest_float("adamax_beta2", betas_range['beta2'][0], betas_range['beta2'][1])
+        )
+        optimizer_params["eps"] = trial.suggest_float("adamax_epsilon", eps_range[0], eps_range[1], log=True)
+    elif optimizer_name == "nadam":
+        optimizer_params["betas"] = (
+            trial.suggest_float("nadam_beta1", betas_range["beta1"][0], betas_range["beta1"][1]),
+            trial.suggest_float("nadam_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
+        )
+        optimizer_params["eps"] = trial.suggest_float("nadam_epsilon", eps_range[0], eps_range[1], log=True)
+        optimizer_params["momentum_decay"] = trial.suggest_float("momentum_decay", nadam_momentum_range[0], nadam_momentum_range[1])
+    elif optimizer_name == "adabound" :
+        optimizer_params["betas"] = (
+            trial.suggest_float("adabound_beta1", betas_range["beta1"][0], betas_range["beta1"][1]),
+            trial.suggest_float("adabound_beta2", betas_range["beta2"][0], betas_range["beta2"][1])
+        )
+        optimizer_params['eps'] = trial.suggest_float("eps", eps_range[0], eps_range[1], log=True)
+        optimizer_params["gamma"] = trial.suggest_float("gamma", adabound_gamma[0], adabound_gamma[1])
+        optimizer_params["final_lr"] = trial.suggest_float("final_lr", adabound_final_lr[0], adabound_final_lr[1])
+        optimizer_params["weight_decay"] = trial.suggest_float("weight_decay",adabound_weight_decay[0], adabound_weight_decay[1] , log=True)
+    
     pl.seed_everything(seed_num)
     model = T5SummarizationModule(
         model_name=model_name,
         learning_rate=learning_rate,
-        optimizer_name=optimizer_name
+        optimizer_name=optimizer_name,
+        **optimizer_params
     )
     
     data_module = T5SummarizationDataModule(
@@ -239,10 +299,10 @@ def objective(trial):
         seed_num=seed_num
     )
     
-    logger = TensorBoardLogger("tb_logs", 
+    logger = TensorBoardLogger("tb_logs_full_training", 
                                name=f"{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}")
     
-    checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}", 
+    checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints_full_training/{model_name}_{optimizer_name}_seed_{seed_num}_trial_{trial.number}", 
                                             monitor="val_loss", 
                                             mode="min",
                                             save_top_k=1)
@@ -257,7 +317,9 @@ def objective(trial):
         accelerator='auto',
         devices='auto',
     )
-    hyperparameters = dict(learning_rate=learning_rate, optimizer_name=optimizer_name)
+    hyperparameters = dict(learning_rate=learning_rate,
+                           optimizer_name=optimizer_name,
+                           **optimizer_params)
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
     
@@ -274,7 +336,7 @@ def main():
     study = optuna.create_study(
         direction="minimize", 
         storage=storage, 
-        study_name=f"{model_name}_{optimizer_name}_with_seed_{seed_num}", 
+        study_name=f"full_training_{model_name}_{optimizer_name}_with_seed_{seed_num}", 
         load_if_exists=True
     )
     study.optimize(objective, n_trials=n_trials)  # Adjust n_trials as needed
@@ -284,7 +346,7 @@ def main():
     
     # Define the output directory structure
     output_dir = os.path.join(
-        "hypertuning_results_lr_tuning",
+        "hypertuning_results_full_training",
         model_name.replace("/", "_"),
         optimizer_name,
         f"seed_{seed_num}"
@@ -306,6 +368,19 @@ def main():
             f.write(f"{key}: {value}\n")
         f.write("Search Spaces:\n")
         f.write(f"  learning_rate: {learning_rate_range}\n")
+        f.write(f"  beta1: ({betas_range['beta1'][0]}, {betas_range['beta1'][1]})\n")
+        f.write(f"  beta2: ({betas_range['beta2'][0]}, {betas_range['beta2'][1]})\n")
+        f.write(f"  eps: {eps_range}\n")
+        if optimizer_name == "adabound":
+            f.write(f"  gamma: {adabound_gamma}\n")
+            f.write(f"  final_lr: {adabound_final_lr}\n")
+            f.write(f"  weight_decay: {adabound_weight_decay}\n")
+        if optimizer_name == "nadam":
+            f.write(f"  momentum: {nadam_momentum_range}\n")
+        if optimizer_name == "sgdm":
+            f.write(f"  momentum: {sgdm_momentum_range}\n")
+        
+        
 
 if __name__ == "__main__":
     main()
