@@ -1,0 +1,12 @@
+Seed: 1000
+Model: google-t5/t5-small
+Dataset: EdinburghNLP/xsum
+Optimizer: sgdm
+Training range: 30000
+Test range: 3000
+Validation range: 3000
+Best Validation Loss: 0.1922997534275055
+Best Hyperparameters:
+learning_rate: 0.000948473380967892
+Search Spaces:
+  learning_rate: (1e-07, 0.001)
