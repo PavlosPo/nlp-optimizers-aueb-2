@@ -5,7 +5,7 @@ from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
 import torch_optimizer as t_optim
 import optuna
@@ -174,7 +174,10 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         if split == 'train':
             data = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
         elif split in ['val', 'test']:
-            temp = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
+            temp1 = dataset['test']
+            temp2 = dataset['validation']
+            # concat the two splits
+            temp = concatenate_datasets([temp1, temp2]).train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
             if split == 'val':
                 data = temp['train'].select(range(min(self.val_range, len(temp['train']))))
             else:
