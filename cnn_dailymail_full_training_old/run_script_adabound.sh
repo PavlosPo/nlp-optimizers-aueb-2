@@ -23,7 +23,6 @@ wait
 
 # Add a delay to let the TPU clean itself
 echo "Waiting for 10 seconds..."
-rm -rf ./checkpoints/**
 sleep 10
 
 # Run the Python script with the second set of arguments
@@ -35,7 +34,6 @@ wait
 
 # Add a delay to let the TPU clean itself
 echo "Waiting for 10 seconds..."
-rm -rf ./checkpoints/**
 sleep 10
 
 # Run the Python script with the Third set of arguments
@@ -47,7 +45,6 @@ wait
 
 # Add a delay to let the TPU clean itself
 echo "Waiting for 10 seconds..."
-rm -rf ./checkpoints/**
 sleep 10
 
 # Run the Python script with the Fourth set of arguments
@@ -59,5 +56,4 @@ wait
 
 # Add a delay to let the TPU clean itself
 echo "Waiting for 10 seconds..."
-rm -rf ./checkpoints/**
 sleep 10
