@@ -1,63 +1,42 @@
 #!/bin/bash
 
-# First set of arguments
-seed1=1
+# Function to run the Python script and clean up
+run_and_clean() {
+    local seed=$1
+    echo "Running configuration with seed $seed..."
+    PJRT_DEVICE=TPU python tune_xla_lightning.py --seed $seed --optim $optim --batch_size $batch_size
+    
+    echo "Waiting for 10 seconds..."
+    sleep 10
+    
+    echo "Deleting checkpoints..."
+    # This will match both 'checkpoints' and 'checkpoints_full_training'
+    for dir in ./checkpoints*; do
+        if [ -d "$dir" ]; then
+            echo "Deleting contents of $dir"
+            rm -rf "$dir"/*
+            if [ $? -eq 0 ]; then
+                echo "Contents of $dir deleted successfully."
+            else
+                echo "Failed to delete contents of $dir. Check permissions and paths."
+            fi
+        fi
+    done
+    
+    echo "Waiting another 5 seconds..."
+    sleep 5
+}
+
+# Set common arguments
 optim="nadam"
 batch_size=16
 
-# Second set of arguments
-seed2=10
+# Array of seeds
+seeds=(1 10 100 1000)
 
-# Third set of arguments
-seed3=100
+# Loop through seeds and run the function
+for seed in "${seeds[@]}"; do
+    run_and_clean $seed
+done
 
-# Fourth set of arguments
-seed4=1000
-
-# Run the Python script with the first set of arguments
-echo "Running first configuration..."
-PJRT_DEVICE=TPU python tune_xla_lightning.py --seed $seed1 --optim $optim --batch_size $batch_size
-
-# Wait for the Python script to finish
-wait
-
-# Add a delay to let the TPU clean itself
-echo "Waiting for 10 seconds..."
-rm -rf ./checkpoints/**
-sleep 10
-
-# Run the Python script with the second set of arguments
-echo "Running second configuration..."
-PJRT_DEVICE=TPU python tune_xla_lightning.py --seed $seed2 --optim $optim --batch_size $batch_size
-
-# Wait for the Python script to finish
-wait
-
-# Add a delay to let the TPU clean itself
-echo "Waiting for 10 seconds..."
-rm -rf ./checkpoints/**
-sleep 10
-
-# Run the Python script with the Third set of arguments
-echo "Running third configuration..."
-PJRT_DEVICE=TPU python tune_xla_lightning.py --seed $seed3 --optim $optim --batch_size $batch_size
-
-# Wait for the Python script to finish
-wait
-
-# Add a delay to let the TPU clean itself
-echo "Waiting for 10 seconds..."
-rm -rf ./checkpoints/**
-sleep 10
-
-# Run the Python script with the Fourth set of arguments
-echo "Running fourth configuration..."
-PJRT_DEVICE=TPU python tune_xla_lightning.py --seed $seed4 --optim $optim --batch_size $batch_size
-
-# Wait for the Python script to finish
-wait
-
-# Add a delay to let the TPU clean itself
-echo "Waiting for 10 seconds..."
-rm -rf ./checkpoints/**
-sleep 10
+echo "All configurations completed."
