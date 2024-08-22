@@ -1,7 +1,0 @@
-betas: !!python/tuple
-- 0.899318302898646
-- 0.9254356240569861
-eps: 1.5385487830649448e-07
-learning_rate: 0.00011567789500432087
-model_name: google-t5/t5-small
-optimizer_name: adam

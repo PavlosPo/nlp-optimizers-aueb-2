@@ -1,0 +1,10 @@
+batch_size: 4
+dataset_name: cnn_dailymail
+learning_rate: 0.0001712458090605288
+max_length: 512
+model_name: google-t5/t5-small
+optimizer_name: adamax
+seed_num: 100
+test_range: 35
+train_range: 350
+val_range: 35
