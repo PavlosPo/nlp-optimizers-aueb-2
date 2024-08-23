@@ -2,13 +2,9 @@ import os
 from main_xla_lightning import main as train_model  # Import the main function from main.py
 
 def read_best_hyperparameters(base_path='./hypertuning_results_full_training/google-t5_t5-small/'):
-    """
-    The read_best_hyperparameters function now reads all hyperparameters under the "Best Hyperparameters" section and adds them to a dictionary.
-    Each key-value pair represents a hyperparameter and its corresponding value.
-    """
     hyperparams = {}
     for optimizer in os.listdir(base_path):
-        optimizer_path = os.path.join(base_path, optimizer)
+        optimizer_path = os.path.join(optimizer_path, optimizer)
         if os.path.isdir(optimizer_path):
             hyperparams[optimizer] = {}
             for seed_dir in os.listdir(optimizer_path):
@@ -26,17 +22,26 @@ def read_best_hyperparameters(base_path='./hypertuning_results_full_training/goo
                             in_best_hyperparameters = True
                         elif in_best_hyperparameters:
                             if line == "Search Spaces:":
-                                break  # Stop if we reach the Search Spaces section
+                                break  # Stop if we reach the Search Spaces section in the .txt files
                             if ":" in line:
                                 key, value = line.split(":")
                                 key = key.strip()
-                                value = value.strip()
-                                if key and value:
-                                    hyperparam_dict[key] = float(value)
+                                value = float(value.strip())
+                                
+                                # Map to the correct optimizer parameters
+                                if key == 'adam_beta1':
+                                    hyperparam_dict['betas'] = (value, hyperparam_dict.get('betas', (None, None))[1])
+                                elif key == 'adam_beta2':
+                                    hyperparam_dict['betas'] = (hyperparam_dict.get('betas', (None, None))[0], value)
+                                elif key == 'adam_epsilon':
+                                    hyperparam_dict['eps'] = value
+                                else:
+                                    hyperparam_dict[key] = value
                     
                     if hyperparam_dict:
                         hyperparams[optimizer][seed_dir] = hyperparam_dict
     return hyperparams
+
 
 def clean_checkpoints():
     print("Cleaning checkpoints...")

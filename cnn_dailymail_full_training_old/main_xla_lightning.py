@@ -215,6 +215,8 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 
 def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
     print(f"\nTraining with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}\n")
+    for key, value in optimizer_params.items():
+        print(f"Using additional hyperparameter: {key} = {value}")
     
     pl.seed_everything(seed)
     model = T5SummarizationModule(
