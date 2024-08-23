@@ -35,6 +35,7 @@ max_length = {
     "3": 1024
 }
 model_name = "google-t5/t5-small"
+bert_score_model_to_use = "microsoft/deberta-large-mnli"
 max_length = 512
 dataset_name = "cnn_dailymail"
 train_range = 3500
@@ -43,7 +44,7 @@ val_range = 350
 epochs = 1
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw", generation_max_tokens=20, **optimizer_params):        
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw", generation_max_tokens=20, bert_score_model_to_use="microsoft/deberta-large-mnli", **optimizer_params):        
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
@@ -55,7 +56,7 @@ class T5SummarizationModule(pl.LightningModule):
         self.generation_max_tokens = generation_max_tokens
         self.valid_step_outputs = []
         self.test_step_outputs = []
-        self.bert_score_model_to_use = "microsoft/deberta-large-mnli"
+        self.bert_score_model_to_use = bert_score_model_to_use
 
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         """
@@ -368,6 +369,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
                            train_range=train_range, 
                            val_range=val_range, 
                            test_range=test_range,
+                           bert_score_model_used=bert_score_model_to_use,
                            **optimizer_params)
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
