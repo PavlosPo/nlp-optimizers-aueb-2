@@ -22,14 +22,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 name_of_database_based_on_server_name = os.getenv("SERVER_NAME")
 db_url = f"sqlite:///{name_of_database_based_on_server_name}.db"
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
-parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
-parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
-args = parser.parse_args()
-
-# Parameters
-optimizer_name = args.optim
 # Ask the user to choose between small, base and large model
 model_names = {
     "1": "google-t5/t5-small",
@@ -44,13 +36,10 @@ max_length = {
 model_name = "google-t5/t5-small"
 max_length = 512
 dataset_name = "cnn_dailymail"
-seed_num = args.seed
-train_range = 35000
-test_range = 3500
-val_range = 3500
-epochs = 5
-n_trials = 30
-batch_size = args.batch_size
+train_range = 350
+test_range = 35
+val_range = 35
+epochs = 2
 
 class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", **optimizer_params):        
@@ -220,99 +209,71 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
-      
-      
-def read_best_hyperparameters(base_path='./hyper_tuning_results_lr_tuning/google-t5_t5-small/'):
-    """
-    Reads the best hyperparameters from the hyper_tuning_results directory for each optimizer for each seed.
-    Returns a dictionary of the form {optimizer: {seed: learning_rate}}
-    """
-    hyperparams = {}
-    for optimizer in os.listdir(base_path):
-        optimizer_path = os.path.join(base_path, optimizer)
-        if os.path.isdir(optimizer_path):
-            hyperparams[optimizer] = {}
-            for seed_dir in os.listdir(optimizer_path):
-                seed_path = os.path.join(optimizer_path, seed_dir)
-                if os.path.isdir(seed_path):
-                    hyperparams_file = os.path.join(seed_path, 'best_hyperparameters.txt')
-                    with open(hyperparams_file, 'r') as f:
-                        lines = f.readlines()
-                    learning_rate = None
-                    for line in lines:
-                        if "learning_rate" in line:
-                            learning_rate = float(line.split(":")[1].strip())
-                    if learning_rate:
-                        hyperparams[optimizer][seed_dir] = {'learning_rate': learning_rate}
-    return hyperparams
 
-def main():
-    hyperparams_per_optimizer = read_best_hyperparameters()
-    for optimizer_name, seeds_data in hyperparams_per_optimizer.items():
-        print(f"\nTraining models for optimizer: {optimizer_name}\n")
-        
-        for seed_dir, params in seeds_data.items():
-            current_learning_rate = params['learning_rate']
-            print(f"Training with seed {seed_dir} with learning rate {current_learning_rate}")
-            
-            pl.seed_everything(int(seed_dir.split('_')[1]))
-            model = T5SummarizationModule(
-                model_name=model_name,
-                learning_rate=current_learning_rate,
-                optimizer_name=optimizer_name,
-            )
-            
-            data_module = T5SummarizationDataModule(
-                model_name=model_name,
-                dataset_name=dataset_name,
-                max_length=max_length,
-                batch_size=batch_size,
-                train_range=train_range,
-                val_range=val_range,
-                test_range=test_range,
-                seed_num=int(seed_dir.split('_')[1])
-            )
-            
-            logger = TensorBoardLogger("tb_logs", 
-                                      name=f"{model_name}_{optimizer_name}_seed_{seed_dir}")
-            
-            checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed_dir}", 
-                                                  monitor="val_loss", 
-                                                  mode="min",
-                                                  save_top_k=1)
-            
-            trainer = pl.Trainer(
-                max_epochs=epochs,
-                logger=logger,
-                callbacks=[checkpoint_callback],
-                log_every_n_steps=1,
-                val_check_interval=0.3,
-                num_sanity_val_steps=0,
-                accelerator='auto',
-                devices='auto',
-            )
-            
-            hyperparameters = dict(learning_rate=current_learning_rate, 
-                                   optimizer_name=optimizer_name, 
-                                   seed_num=seed_dir, 
-                                   dataset_name=dataset_name, 
-                                   model_name=model_name, 
-                                   max_length=max_length, 
-                                   batch_size=batch_size, 
-                                   train_range=train_range, 
-                                   val_range=val_range, 
-                                   test_range=test_range)
-            trainer.logger.log_hyperparams(hyperparameters)
-            trainer.fit(model, datamodule=data_module)
-            
-            trainer.test(model, datamodule=data_module)
-            # Log test results to TensorBoard
-            for key, value in trainer.callback_metrics.items():
-                if key.startswith("test_"):
-                    trainer.logger.experiment.add_scalar(f"test_{key}", value, global_step=trainer.global_step)
-            print(f"Finished training with seed {seed_dir}\n")
-        
-        print(f"Finished training all seeds for optimizer: {optimizer_name}\n")
+def main(seed, optimizer_name, batch_size, learning_rate):
+    print(f"\nTraining with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}\n")
+    
+    pl.seed_everything(seed)
+    model = T5SummarizationModule(
+        model_name=model_name,
+        learning_rate=learning_rate,
+        optimizer_name=optimizer_name,
+    )
+    
+    data_module = T5SummarizationDataModule(
+        model_name=model_name,
+        dataset_name=dataset_name,
+        max_length=max_length,
+        batch_size=batch_size,
+        train_range=train_range,
+        val_range=val_range,
+        test_range=test_range,
+        seed_num=seed
+    )
+    
+    logger = TensorBoardLogger("tb_logs", 
+                              name=f"{model_name}_{optimizer_name}_seed_{seed}")
+    
+    checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed}", 
+                                          monitor="val_loss", 
+                                          mode="min",
+                                          save_top_k=1)
+    
+    trainer = pl.Trainer(
+        max_epochs=epochs,
+        logger=logger,
+        callbacks=[checkpoint_callback],
+        log_every_n_steps=1,
+        val_check_interval=0.3,
+        num_sanity_val_steps=0,
+        accelerator='auto',
+        devices='auto',
+    )
+    
+    hyperparameters = dict(learning_rate=learning_rate, 
+                           optimizer_name=optimizer_name, 
+                           seed_num=seed, 
+                           dataset_name=dataset_name, 
+                           model_name=model_name, 
+                           max_length=max_length, 
+                           batch_size=batch_size, 
+                           train_range=train_range, 
+                           val_range=val_range, 
+                           test_range=test_range)
+    trainer.logger.log_hyperparams(hyperparameters)
+    trainer.fit(model, datamodule=data_module)
+    
+    trainer.test(model, datamodule=data_module)
+    # Log test results to TensorBoard
+    for key, value in trainer.callback_metrics.items():
+        if key.startswith("test_"):
+            trainer.logger.experiment.add_scalar(f"test_{key}", value, global_step=trainer.global_step)
+    print(f"\nFinished training with seed {seed}\n")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
+    parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
+    parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
+    args = parser.parse_args()
+    main(args.seed, args.optim, args.batch_size, args.learning_rate)
