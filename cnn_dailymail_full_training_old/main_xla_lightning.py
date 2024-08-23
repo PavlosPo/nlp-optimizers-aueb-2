@@ -1,7 +1,7 @@
 import torch
 import pickle
 import lightning.pytorch as pl
-from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
@@ -9,6 +9,7 @@ from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
 import torch_optimizer as t_optim
 import optuna
+import wandb
 from optuna.storages import RDBStorage
 import os
 import argparse
@@ -18,6 +19,8 @@ import json
 load_dotenv()
 
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'
+
+wandb.require("core")
 
 name_of_database_based_on_server_name = os.getenv("SERVER_NAME")
 db_url = f"sqlite:///{name_of_database_based_on_server_name}.db"
@@ -231,18 +234,22 @@ def main(seed, optimizer_name, batch_size, learning_rate):
         seed_num=seed
     )
     
-    logger = TensorBoardLogger("tb_logs", 
-                              name=f"{model_name}_{optimizer_name}_seed_{seed}")
+    # logger = TensorBoardLogger("tb_logs", 
+    #                           name=f"{model_name}_{optimizer_name}_seed_{seed}")
+    # Initialize WandbLogger
+    wandb_logger = WandbLogger(project="t5_summarization_project",
+                               name=f"{model_name}_{optimizer_name}_seed_{seed}",
+                               log_model=True)
     
-    checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed}", 
-                                          monitor="val_loss", 
-                                          mode="min",
-                                          save_top_k=1)
+    # checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed}", 
+    #                                       monitor="val_loss", 
+    #                                       mode="min",
+    #                                       save_top_k=1)
     
     trainer = pl.Trainer(
         max_epochs=epochs,
-        logger=logger,
-        callbacks=[checkpoint_callback],
+        logger=wandb_logger,  # Use W&B logger here
+        # callbacks=[checkpoint_callback],
         log_every_n_steps=1,
         val_check_interval=0.3,
         num_sanity_val_steps=0,
@@ -264,10 +271,6 @@ def main(seed, optimizer_name, batch_size, learning_rate):
     trainer.fit(model, datamodule=data_module)
     
     trainer.test(model, datamodule=data_module)
-    # Log test results to TensorBoard
-    for key, value in trainer.callback_metrics.items():
-        if key.startswith("test_"):
-            trainer.logger.experiment.add_scalar(f"test_{key}", value, global_step=trainer.global_step)
     print(f"\nFinished training with seed {seed}\n")
 
 if __name__ == "__main__":
