@@ -54,7 +54,7 @@ class T5SummarizationModule(pl.LightningModule):
         self.generation_max_tokens = generation_max_tokens
         self.valid_step_outputs = []
         self.test_step_outputs = []
-        self.bert_score_model_to_use = 'microsoft/deberta-xlarge-mnli' # Current Best Model closest to Human Evaluation
+        self.bert_score_model_to_use = 'roberta-large' 
 
     def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
         """
