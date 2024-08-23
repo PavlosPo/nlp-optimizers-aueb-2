@@ -1,0 +1,20 @@
+Seed: 1
+Model: google-t5/t5-small
+Dataset: EdinburghNLP/xsum
+Optimizer: nadam
+Training range: 30000
+Test range: 3000
+Validation range: 3000
+Best Validation Loss: 0.14287984371185303
+Best Hyperparameters:
+learning_rate: 0.00046606393234007603
+nadam_beta1: 0.8944034983466643
+nadam_beta2: 0.9258491222421597
+nadam_epsilon: 5.266905564124594e-08
+momentum_decay: 0.004247128589092139
+Search Spaces:
+  learning_rate: (1e-07, 0.001)
+  beta1: (0.8, 0.95)
+  beta2: (0.9, 0.99999)
+  eps: (1e-09, 1e-07)
+  momentum: (0.0001, 0.01)
