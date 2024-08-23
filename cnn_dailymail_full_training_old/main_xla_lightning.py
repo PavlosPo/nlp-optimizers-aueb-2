@@ -45,7 +45,7 @@ val_range = 350
 epochs = 1
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw", **optimizer_params):        
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw", generation_max_tokens=20, **optimizer_params):        
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
@@ -54,9 +54,26 @@ class T5SummarizationModule(pl.LightningModule):
         self.optimizer_name = optimizer_name
         self.optimizer_params = optimizer_params
         self.val_loss = MeanMetric() # This line to create a metric for tracking validation loss
+        self.generation_max_tokens = generation_max_tokens
+        self.valid_step_outputs = []
+        self.test_step_outputs = []
+        self.bert_score_model_to_use = 'microsoft/deberta-xlarge-mnli' # Current Best Model closest to Human Evaluation
 
-    def forward(self, input_ids, attention_mask, labels=None):
+    def forward(self, input_ids, attention_mask, labels=None, predict_with_generate=False):
+        """
+        Forward pass of the model
+        Args:
+            input_ids: Input token ids of shape (batch_size, sequence_length)
+            attention_mask: Attention mask of shape (batch_size, sequence_length)
+            labels: Labels of shape (batch_size, target_sequence_length)
+            predict_with_generate: Whether to use the model to generate predictions
+        """
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        if predict_with_generate:
+            generated = self.model.generate(input_ids=input_ids, 
+                                                       attention_mask=attention_mask, 
+                                                       max_length=self.generation_max_tokens + 2)
+            outputs['sequences'] = generated.view(input_ids.shape[0], -1)  # Reshape to match input shape
         return outputs
         
     def training_step(self, batch, batch_idx):
@@ -67,14 +84,20 @@ class T5SummarizationModule(pl.LightningModule):
         self.log("train_loss", loss, on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         return loss
     
+    def on_train_epoch_end(self):
+        pass
+    
     def validation_step(self, batch, batch_idx):
         with torch.no_grad():
             outputs = self.forward(input_ids=batch["input_ids"],
                                    attention_mask=batch["attention_mask"],
-                                   labels=batch["labels"])
+                                   labels=batch["labels"],
+                                   predict_with_generate=True)
             loss = outputs['loss']
-            # Update the validation loss metric
-            self.val_loss.update(loss)
+            self.val_loss.update(loss)  # Update the metric for the epoch validation loss
+            
+            generated_seq = outputs['sequences'].view(-1, outputs['sequences'].size(-1))  # Flatten if needed
+            self.valid_step_outputs.append((generated_seq, batch["labels"])) # Store the outputs for evaluation
         return loss
     
     def on_validation_epoch_end(self):
@@ -82,19 +105,91 @@ class T5SummarizationModule(pl.LightningModule):
         # Log the epoch validation loss
         self.log("val_loss", avg_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         self.val_loss.reset() # Reset the metric for the next epoch
+        
+        self._initialize_metrics()
+        self._eval_epoch_end(self.valid_step_outputs, "val") # Evaluate the model on the validation set
+        self.valid_step_outputs.clear() # Clear the outputs for the next epoch
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
             outputs = self.forward(input_ids=batch["input_ids"], 
                            attention_mask=batch["attention_mask"], 
-                           labels=batch["labels"])
+                           labels=batch["labels"], 
+                           predict_with_generate=True)
+            generated_seq = outputs['sequences'].view(-1, outputs['sequences'].size(-1))  # Flatten if needed
             loss = outputs['loss']
             self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+            self.test_step_outputs.append((generated_seq, batch["labels"])) # Store the outputs for evaluation
         return loss
+    
+    def on_test_epoch_end(self):
+        self._initialize_metrics()
+        self._eval_epoch_end(self.test_step_outputs, "test")
+        self.test_step_outputs.clear()
+        
+    def _initialize_metrics(self):
+        """
+        Initialize the metrics used for evaluation.
+        Because the BERTScore can not pushed to the TPU if it is in the __init__ method, 
+        we have to do this in the training loop in order to run in the TPU.
+        """
+        if not hasattr(self, "rouge_score"):
+            self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
+        if not hasattr(self, "bert_score"):
+            self.bert_score = BERTScore(model_name_or_path=self.bert_score_model_to_use,
+                                        sync_on_compute=True, device=self.device)
+    
+    def _eval_epoch_end(self, outputs, prefix):
+        """
+        Evaluate the model on the validation set and log the metrics.
+        This should be called at the end of the validation/test epoch.
+        """
+        all_preds = torch.cat([x[0] for x in outputs], dim=0)
+        all_labels = torch.cat([x[1] for x in outputs], dim=0)
+        with torch.no_grad():
+            self._log_metrics(prefix, all_preds, all_labels)
+        
+    def _log_metrics(self, prefix, predictions, labels):
+        """
+        Log the metrics for the predictions and labels based on the prefix.
+        """
+        metrics = self._compute_metrics(predictions, labels)
+        self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, 
+                      on_step=False, on_epoch=True, sync_dist=True)
         
     def configure_optimizers(self):
+        """
+        Configure the optimizer and learning rate scheduler.
+        """
         optimizer = self._get_optimizer()
         return optimizer
+    
+    def _compute_metrics(self, predictions, labels):
+        """
+        Helper function to Compute the metrics for the predictions and labels.
+        
+        Args:
+            predictions: The predictions from the model.
+            labels: The labels for the predictions.
+        Returns:
+            The metrics for the predictions and labels as a dictionary.
+        """
+        if isinstance(predictions, list):
+           predictions = torch.cat(predictions, dim=0)
+        if isinstance(labels, list):
+            labels = torch.cat(labels, dim=0)
+        
+        predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
+        labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
+
+        decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)        
+        processed_labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
+        decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
+        result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
+        result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+        result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
+        results = {**result_rouge, **result_brt_average_values}
+        return results
 
     def _get_optimizer(self):
         if self.optimizer_name == "adamw":
