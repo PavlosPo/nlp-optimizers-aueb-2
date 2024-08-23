@@ -29,6 +29,14 @@ def read_best_hyperparameters(base_path='./hypertuning_results_full_training/goo
                         hyperparams[optimizer][seed_dir] = {'learning_rate': learning_rate}
     return hyperparams
 
+def clean_checkpoints():
+    print("Cleaning checkpoints...")
+    if os.path.exists("./checkpoints"):
+        os.system("rm -r ./checkpoints/*")
+    if os.path.exists("./checkpoints_full_training"):
+        os.system("rm -r ./checkpoints_full_training/*")
+    print("Finished cleaning checkpoints")
+
 def main():
     hyperparams_per_optimizer = read_best_hyperparameters()
     batch_size = 4  # Add or modify batch sizes as needed
@@ -44,8 +52,12 @@ def main():
             
             # Directly call the main function from main.py
             train_model(seed, optimizer_name, batch_size, learning_rate)
+            
+            clean_checkpoints()
         
         print(f"Finished exploring all configurations for optimizer: {optimizer_name}\n")
+
+    print("Finished exploring all optimizers")
 
 if __name__ == "__main__":
     main()

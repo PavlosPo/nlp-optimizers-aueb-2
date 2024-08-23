@@ -234,22 +234,22 @@ def main(seed, optimizer_name, batch_size, learning_rate):
         seed_num=seed
     )
     
-    # logger = TensorBoardLogger("tb_logs", 
-    #                           name=f"{model_name}_{optimizer_name}_seed_{seed}")
     # Initialize WandbLogger
+    if wandb.enabled:
+        wandb.finish()
     wandb_logger = WandbLogger(project="t5_summarization_project",
                                name=f"{model_name}_{optimizer_name}_seed_{seed}",
                                log_model=True)
     
-    # checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed}", 
-    #                                       monitor="val_loss", 
-    #                                       mode="min",
-    #                                       save_top_k=1)
+    checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed}", 
+                                          monitor="val_loss", 
+                                          mode="min",
+                                          save_top_k=1)
     
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=wandb_logger,  # Use W&B logger here
-        # callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback],
         log_every_n_steps=1,
         val_check_interval=0.3,
         num_sanity_val_steps=0,
@@ -270,7 +270,8 @@ def main(seed, optimizer_name, batch_size, learning_rate):
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
     
-    trainer.test(model, datamodule=data_module)
+    trainer.test(ldatamodule=data_module, ckpt_path="best")
+    wandb.finish()
     print(f"\nFinished training with seed {seed}\n")
 
 if __name__ == "__main__":
