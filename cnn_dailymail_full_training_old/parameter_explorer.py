@@ -6,11 +6,11 @@ def read_best_hyperparameters(base_path='./hypertuning_results_full_training/goo
     
     # Mapping optimizer-specific names to generic parameter names to be used in the training with the correct argument names
     param_mapping = {
-        'adam': {'learning_rate': 'lr', 'beta1': 'betas[0]', 'beta2': 'betas[1]', 'epsilon': 'eps'},
-        'adamax': {'learning_rate': 'lr', 'beta1': 'betas[0]', 'beta2': 'betas[1]', 'epsilon': 'eps'},
-        'adamw': {'learning_rate': 'lr', 'beta1': 'betas[0]', 'beta2': 'betas[1]', 'epsilon': 'eps'},
-        'nadam': {'learning_rate': 'lr', 'beta1': 'betas[0]', 'beta2': 'betas[1]', 'epsilon': 'eps', 'momentum_decay': 'momentum_decay'},
-        'sgdm': {'learning_rate': 'lr', 'momentum': 'momentum'},
+        'adam': {'beta1': 'betas[0]', 'beta2': 'betas[1]', 'epsilon': 'eps'},
+        'adamax': {'beta1': 'betas[0]', 'beta2': 'betas[1]', 'epsilon': 'eps'},
+        'adamw': {'beta1': 'betas[0]', 'beta2': 'betas[1]', 'epsilon': 'eps'},
+        'nadam': {'beta1': 'betas[0]', 'beta2': 'betas[1]', 'epsilon': 'eps', 'momentum_decay': 'momentum_decay'},
+        'sgdm': {'momentum': 'momentum'},
         # Add mappings for other optimizers if needed
     }
 
@@ -60,8 +60,6 @@ def read_best_hyperparameters(base_path='./hypertuning_results_full_training/goo
                         hyperparams[optimizer][seed_dir] = hyperparam_dict
     return hyperparams
 
-
-
 def clean_checkpoints():
     print("Cleaning checkpoints...")
     if os.path.exists("./checkpoints"):
@@ -80,21 +78,14 @@ def main():
         for seed_dir, params in seeds_data.items():
             seed = int(seed_dir.split('_')[1])
             learning_rate = params.pop('learning_rate', None)
-            
             # Debugging: Check if 'learning_rate' is still in params
             if 'learning_rate' in params:
                 print(f"Error: 'learning_rate' is still in params for seed {seed} and optimizer {optimizer_name}")
-            
-            
             if learning_rate is None:
                 print(f"Skipping seed {seed} due to missing learning rate.")
                 continue
-            
-            print(f"Running training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and hyperparameters: {params}")
-            
             # Directly call the main function from main.py, explicitly passing the learning rate and other params
             train_model(seed, optimizer_name, batch_size, learning_rate, **params)
-            
             clean_checkpoints()
         
         print(f"Finished exploring all configurations for optimizer: {optimizer_name}\n")

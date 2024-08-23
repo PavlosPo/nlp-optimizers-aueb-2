@@ -2,6 +2,7 @@ import torch
 import pickle
 import os
 import wandb
+import numpy as np
 import torch_optimizer as t_optim
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
@@ -133,6 +134,8 @@ class T5SummarizationModule(pl.LightningModule):
         Because the BERTScore can not pushed to the TPU if it is in the __init__ method, 
         we have to do this in the training loop in order to run in the TPU.
         """
+        print("Initializing Metrics...")
+        print(f"Using BERTScore model: {self.bert_score_model_to_use}")
         if not hasattr(self, "rouge_score"):
             self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         if not hasattr(self, "bert_score"):
