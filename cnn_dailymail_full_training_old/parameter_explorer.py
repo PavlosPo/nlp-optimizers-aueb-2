@@ -4,7 +4,7 @@ from main_xla_lightning import main as train_model  # Import the main function f
 def read_best_hyperparameters(base_path='./hypertuning_results_full_training/google-t5_t5-small/'):
     hyperparams = {}
     
-    # Mapping optimizer-specific names to generic parameter names
+    # Mapping optimizer-specific names to generic parameter names to be used in the training with the correct argument names
     param_mapping = {
         'adam': {'beta1': 'betas[0]', 'beta2': 'betas[1]', 'epsilon': 'eps'},
         'adamax': {'beta1': 'betas[0]', 'beta2': 'betas[1]', 'epsilon': 'eps'},
@@ -72,23 +72,22 @@ def clean_checkpoints():
 
 def main():
     hyperparams_per_optimizer = read_best_hyperparameters()
-    batch_size = 4  # Add or modify batch sizes as needed
+    batch_size = 16  # Add or modify batch sizes as needed
     
     for optimizer_name, seeds_data in hyperparams_per_optimizer.items():
         print(f"\nExploring models for optimizer: {optimizer_name}\n")
         
         for seed_dir, params in seeds_data.items():
             seed = int(seed_dir.split('_')[1])
-            learning_rate = params.pop('learning_rate', None)
+            learning_rate = params.get('learning_rate', None)
             
             if learning_rate is None:
                 print(f"Skipping seed {seed} due to missing learning rate.")
                 continue
             
             print(f"Running training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and hyperparameters: {params}")
-            print("Additional params: ", params)
             
-            # Directly call the main function from main.py
+            # Directly call the main function from main.py, explicitly passing the learning rate and other params
             train_model(seed, optimizer_name, batch_size, learning_rate, **params)
             
             clean_checkpoints()
@@ -99,3 +98,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
