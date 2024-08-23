@@ -235,6 +235,7 @@ def main(seed, optimizer_name, batch_size, learning_rate):
     )
     
     # Initialize WandbLogger
+    wandb.finish()  # In case the last run crashed, this will close the previous run
     wandb_logger = WandbLogger(project="t5_summarization_project",
                                name=f"{model_name}_{optimizer_name}_seed_{seed}",
                                log_model=True)
@@ -268,7 +269,7 @@ def main(seed, optimizer_name, batch_size, learning_rate):
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
     
-    trainer.test(ldatamodule=data_module, ckpt_path="best")
+    trainer.test(datamodule=data_module, ckpt_path="best")
     wandb.finish()
     print(f"\nFinished training with seed {seed}\n")
 
