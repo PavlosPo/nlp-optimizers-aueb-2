@@ -16,8 +16,10 @@ from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
 import argparse
 from dotenv import load_dotenv
+from icecream import ic
 
 load_dotenv()           # This is required for the .env file
+nltk.download()
 nltk.download('punkt_tab')  # This is required for BERTScore to run.
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'  # This is required in order not to have Race conditions in TPUs.
 wandb.require("core")   # This is required for W&B to work in future versions.
@@ -94,6 +96,7 @@ class T5SummarizationModule(pl.LightningModule):
             self.val_loss.update(loss)  # Update the metric for the epoch validation loss
             
             generated_seq = outputs['sequences'].view(-1, outputs['sequences'].size(-1))  # Flatten if needed
+            ic(generated_seq)
             self.valid_step_outputs.append((generated_seq, batch["labels"])) # Store the outputs for evaluation
         return loss
     
@@ -146,6 +149,8 @@ class T5SummarizationModule(pl.LightningModule):
         """
         all_preds = torch.cat([x[0] for x in outputs], dim=0)
         all_labels = torch.cat([x[1] for x in outputs], dim=0)
+        ic(all_preds)
+        ic(all_labels)
         with torch.no_grad():
             self._log_metrics(prefix, all_preds, all_labels)
         
@@ -154,6 +159,7 @@ class T5SummarizationModule(pl.LightningModule):
         Log the metrics for the predictions and labels based on the prefix.
         """
         metrics = self._compute_metrics(predictions, labels)
+        ic(metrics)
         self.log_dict({f"{prefix}_{k}": v for k, v in metrics.items()}, 
                       on_step=False, on_epoch=True, sync_dist=True)
         
