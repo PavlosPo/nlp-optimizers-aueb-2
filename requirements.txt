@@ -6,3 +6,5 @@ torch_optimizer
 python-dotenv
 tensorboardx
 py7zr
+nltk
+wandb

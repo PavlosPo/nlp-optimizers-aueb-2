@@ -3,6 +3,7 @@ import pickle
 import os
 import wandb
 import numpy as np
+import nltk
 import torch_optimizer as t_optim
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
@@ -13,18 +14,13 @@ from torchmetrics.text.bert import BERTScore
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
 from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
-
 import argparse
 from dotenv import load_dotenv
 
-load_dotenv()
-
-os.environ["TOKENIZERS_PARALLELISM"] = 'false'
-
-wandb.require("core")
-
-name_of_database_based_on_server_name = os.getenv("SERVER_NAME")
-db_url = f"sqlite:///{name_of_database_based_on_server_name}.db"
+load_dotenv()           # This is required for the .env file
+nltk.download('punkt')  # This is required for BERTScore to run.
+os.environ["TOKENIZERS_PARALLELISM"] = 'false'  # This is required in order not to have Race conditions in TPUs.
+wandb.require("core")   # This is required for W&B to work in future versions.
 
 # Ask the user to choose between small, base and large model
 model_names = {
@@ -382,6 +378,6 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
     parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
-    # Can add more arguments as optimizers params, can also add them as **kwargs in the main() call below.
+    # TIP: Can add more arguments as optimizers params, can also add them as **kwargs in the main() call below.
     args = parser.parse_args()
     main(args.seed, args.optim, args.batch_size, args.learning_rate)
