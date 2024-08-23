@@ -8,3 +8,4 @@ tensorboardx
 py7zr
 nltk
 wandb
+icecream

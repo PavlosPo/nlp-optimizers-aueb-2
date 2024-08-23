@@ -310,6 +310,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
 
 def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
+    ic.disable()
     print(f"Training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}")
     for key, value in optimizer_params.items():
         print(f"Using additional hyperparameter: {key} = {value}")
