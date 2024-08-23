@@ -81,6 +81,11 @@ def main():
             seed = int(seed_dir.split('_')[1])
             learning_rate = params.pop('learning_rate', None)
             
+            # Debugging: Check if 'learning_rate' is still in params
+            if 'learning_rate' in params:
+                print(f"Error: 'learning_rate' is still in params for seed {seed} and optimizer {optimizer_name}")
+            
+            
             if learning_rate is None:
                 print(f"Skipping seed {seed} due to missing learning rate.")
                 continue
