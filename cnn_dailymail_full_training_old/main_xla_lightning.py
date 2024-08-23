@@ -132,8 +132,6 @@ class T5SummarizationModule(pl.LightningModule):
         Because the BERTScore can not pushed to the TPU if it is in the __init__ method, 
         we have to do this in the training loop in order to run in the TPU, which means, it runs faster.
         """
-        print("\nRunning Metrics...")
-        print(f"Using BERTScore model: {self.bert_score_model_to_use}")
         if not hasattr(self, "rouge_score"):
             self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         if not hasattr(self, "bert_score"):
