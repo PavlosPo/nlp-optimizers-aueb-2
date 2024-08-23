@@ -19,7 +19,6 @@ from dotenv import load_dotenv
 from icecream import ic
 
 load_dotenv()           # This is required for the .env file
-nltk.download()
 nltk.download('punkt_tab')  # This is required for BERTScore to run.
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'  # This is required in order not to have Race conditions in TPUs.
 wandb.require("core")   # This is required for W&B to work in future versions.
@@ -384,6 +383,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
     parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
+    parser.add_argument("--learning_rate", type=float, required=True, help="Learning rate for training")
     # TIP: Can add more arguments as optimizers params, can also add them as **kwargs in the main() call below.
     args = parser.parse_args()
     main(args.seed, args.optim, args.batch_size, args.learning_rate)
