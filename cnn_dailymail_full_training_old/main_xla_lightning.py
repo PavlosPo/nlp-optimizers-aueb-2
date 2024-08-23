@@ -132,13 +132,14 @@ class T5SummarizationModule(pl.LightningModule):
         """
         Initialize the metrics used for evaluation.
         Because the BERTScore can not pushed to the TPU if it is in the __init__ method, 
-        we have to do this in the training loop in order to run in the TPU.
+        we have to do this in the training loop in order to run in the TPU, which means, it runs faster.
         """
-        print("Initializing Metrics...")
+        print("\nRunning Metrics...")
         print(f"Using BERTScore model: {self.bert_score_model_to_use}")
         if not hasattr(self, "rouge_score"):
             self.rouge_score = ROUGEScore(use_stemmer=True, sync_on_compute=True)
         if not hasattr(self, "bert_score"):
+            
             self.bert_score = BERTScore(model_name_or_path=self.bert_score_model_to_use,
                                         sync_on_compute=True, device=self.device)
     
@@ -312,7 +313,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
 
 def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
-    print(f"\nTraining with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}\n")
+    print(f"Training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}")
     for key, value in optimizer_params.items():
         print(f"Using additional hyperparameter: {key} = {value}")
     
@@ -374,12 +375,13 @@ def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
     
     trainer.test(datamodule=data_module, ckpt_path="best")
     wandb.finish()
-    print(f"\nFinished training with seed {seed}\n")
+    print(f"\nFinished training with seed {seed}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
     parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
+    # Can add more arguments as optimizers params, can also add them as **kwargs in the main() call below.
     args = parser.parse_args()
     main(args.seed, args.optim, args.batch_size, args.learning_rate)
