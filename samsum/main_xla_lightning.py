@@ -41,7 +41,7 @@ dataset_name = "Samsung/samsum"
 train_range = 14732
 test_range = 820 # max
 val_range = 820 # max
-epochs = 1
+epochs = 5
 
 class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", generation_max_tokens=20, bert_score_model_to_use="microsoft/deberta-large-mnli", **optimizer_params):        
