@@ -37,11 +37,11 @@ max_length = {
 model_name = "google-t5/t5-small"
 bert_score_model_to_use = "microsoft/deberta-large-mnli"
 max_length = 512
-dataset_name = "cnn_dailymail"
-train_range = 3500
-test_range = 350
-val_range = 350
-epochs = 1
+dataset_name = "facebook/flores"
+train_range = 1000
+test_range = 1000
+val_range = 1000
+epochs = 5
 
 class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", generation_max_tokens=20, bert_score_model_to_use="microsoft/deberta-large-mnli", **optimizer_params):        
@@ -219,9 +219,10 @@ class T5SummarizationModule(pl.LightningModule):
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
         
-class T5SummarizationDataModule(pl.LightningDataModule):
+class T5TranslationDataModule(pl.LightningDataModule):
     def __init__(self, model_name, dataset_name, max_length, 
-                 batch_size, train_range, val_range, test_range, seed_num):
+                 batch_size, train_range, val_range, test_range, seed_num,
+                 languages):
         super().__init__()
         self.model_name = model_name
         self.dataset_name = dataset_name
@@ -231,86 +232,146 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         self.val_range = val_range
         self.test_range = test_range
         self.seed_num = seed_num
+        self.languages = languages
         self.tokenizer = None
         self.data_collator = None
-        self.train_dataset = None
-        self.val_dataset = None
-        self.test_dataset = None
+        self.train_datasets = []
+        self.val_datasets = []
+        self.test_datasets = []
         self.cache_dir = f"./dataset_cache_{self.seed_num}"
 
     def prepare_data(self):
-        # Downloading data, called only once on 1 GPU/TPU in distributed settings
-        load_dataset(self.dataset_name, '3.0.0',  trust_remote_code=True).shuffle(seed=self.seed_num)
+        load_dataset(self.dataset_name, 'all', trust_remote_code=True).shuffle(seed=self.seed_num)
         AutoTokenizer.from_pretrained(self.model_name)
 
-    def setup(self, stage):
-        # Setting up the data, called on every GPU/TPU in DDP
+    def setup(self, stage=None):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
         
-        # Load and preprocess the dataset
         if stage == 'fit' or stage is None:
-            self.train_dataset = self._get_or_process_dataset('train')
-            self.val_dataset = self._get_or_process_dataset('val')
+            self.train_datasets = self._get_or_process_dataset('train')
+            self.val_datasets = self._get_or_process_dataset('validation')
         if stage == 'test' or stage is None:
-            self.test_dataset = self._get_or_process_dataset('test')
-            
+            self.test_datasets = self._get_or_process_dataset('test')
+        
+        print(f"Setup complete. Datasets sizes: Train: {len(self.train_datasets)}, Val: {len(self.val_datasets)}, Test: {len(self.test_datasets)}")
+        # Set global length for train, val, and test datasets, to save in the output file after hyperparameter tuning
+        global train_range, val_range, test_range
+        train_range = len(self.train_datasets)
+        val_range = len(self.val_datasets)
+        test_range = len(self.test_datasets)
+
     def _get_or_process_dataset(self, split):
-        cache_file = os.path.join(self.cache_dir, f"{split}_{self.seed_num}.pkl")
+        # Create combined dataset from all language pairs
+        combined_dataset = []
         
-        if os.path.exists(cache_file):
-            print(f"Loading cached {split} dataset...")
-            with open(cache_file, 'rb') as f:
-                return pickle.load(f)
-        
-        print(f"Processing {split} dataset...")
-        dataset = load_dataset(self.dataset_name, '3.0.0',  trust_remote_code=True).shuffle(seed=self.seed_num)
-        
-        if split == 'train':
-            data = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
-        elif split in ['val', 'test']:
-            temp1 = dataset['test']
-            temp2 = dataset['validation']
-            # concat the two splits
-            temp = concatenate_datasets([temp1, temp2]).train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
-            if split == 'val':
-                data = temp['train'].select(range(min(self.val_range, len(temp['train']))))
+        for language in self.languages: 
+            """
+            This loop runs once per language code.
+            Each language code creates a cache file with the same name in the cache directory.
+            If the cache file exists, the dataset is loaded from the cache file.
+            If the cache file does not exist, the dataset is loaded from the original dataset and saved in the cache file.
+            The dataset is then added to the combined dataset in order to return the combined dataset with all the language 
+            pairs that have been set in the 'language_to_choose' list.
+            """
+            cache_file = os.path.join(self.cache_dir, f"{split}_{language}_{self.seed_num}.pkl")
+            
+            if os.path.exists(cache_file):
+                print(f"Loading cached {split} dataset for {language}...")
+                with open(cache_file, 'rb') as f:
+                    dataset = pickle.load(f)
+                print(f"Loaded {split} dataset for {language} with {len(dataset)} samples")
             else:
-                data = temp['test'].select(range(min(self.test_range, len(temp['test']))))
+                # TODO: Check if this is correct, to use temp1, temp2
+                print(f"Processing {split} dataset for {language}...")
+                dataset = load_dataset(self.dataset_name, 'all',  trust_remote_code=True)['dev'].shuffle(seed=self.seed_num)
+                temp1 = dataset['test']
+                temp2 = dataset['validation']
+                # concat the two splits
+                dataset = concatenate_datasets([temp1, temp2]).train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
+                
+                if split == 'train':
+                    data = dataset.select(range(min(self.train_range, len(dataset))))
+                elif split == 'validation':
+                    data = dataset.select(range(min(self.val_range, len(dataset))))
+                elif split == 'test':
+                    data = dataset.select(range(min(self.test_range, len(dataset))))
+                
+                processed_dataset = self._preprocess_dataset(data, language)
+                
+                os.makedirs(self.cache_dir, exist_ok=True)
+                with open(cache_file, 'wb') as f:
+                    pickle.dump(processed_dataset, f)
+                
+                dataset = processed_dataset
+            
+            combined_dataset.extend(dataset)
         
-        processed_dataset = self._preprocess_dataset(data)
-        
-        os.makedirs(self.cache_dir, exist_ok=True)
-        with open(cache_file, 'wb') as f:
-            pickle.dump(processed_dataset, f)
-        
-        return processed_dataset
+        return combined_dataset
     
-    def _preprocess_dataset(self, dataset):
+    def _preprocess_dataset(self, dataset, target_language_code):
+        """
+        Preprocess the dataset by mapping the language codes to their corresponding names.
+        For example, "deu_Latn" maps to "German" in the German dataset. 
+        This is given in the link: 
+        https://github.com/facebookresearch/flores/blob/main/flores200/README.md
+        
+        The function also maps the target language code to the corresponding name.
+        The function returns the preprocessed dataset.
+
+        Args:
+            dataset (_dataset_): The dataset to preprocess. 
+            target_language_code (str): The target language code.
+
+        Returns:
+            _dataset_: The preprocessed dataset.
+        """
+        mapping = {
+            "deu_Latn": "German",
+            "fra_Latn": "French",
+            "ron_Latn": "Romanian"
+        }
+        target_lang_name = mapping[target_language_code]
+
+        def preprocess_function(examples):
+            """
+            Internal function to preprocess the dataset.
+            """
+            model_inputs = {"input_ids": [], "attention_mask": [], "labels": []}
+
+            for i in range(len(examples['sentence_eng_Latn'])):
+                """
+                This loop runs once per sentence in the dataset.
+                The sentence is mapped to the given target language name and the target text is mapped to the corresponding language code.
+                The function returns the model inputs.
+                """
+                prefix = f"translate English to {target_lang_name}: "
+                input_text = prefix + examples['sentence_eng_Latn'][i]
+                target_text = examples[f'sentence_{target_language_code}'][i]
+                
+                tokenized_input = self.tokenizer(input_text, max_length=self.max_length, padding="max_length", truncation=True)
+                tokenized_target = self.tokenizer(target_text, max_length=self.max_length, padding="max_length", truncation=True)
+                
+                model_inputs["input_ids"].append(tokenized_input["input_ids"])
+                model_inputs["attention_mask"].append(tokenized_input["attention_mask"])
+                model_inputs["labels"].append(tokenized_target["input_ids"])
+
+            return model_inputs
+
         return dataset.map(
-            lambda x: self._preprocess_function(x),
+            preprocess_function,
             batched=True,
             remove_columns=dataset.column_names
         )
-        
-    def _preprocess_function(self, examples):
-        prefix = "summarize: "
-        inputs = [prefix + doc for doc in examples["article"]]
-        model_inputs = self.tokenizer(inputs, padding="max_length", 
-                                      truncation=True, max_length=self.max_length)
-        labels = self.tokenizer(text_target=examples["highlights"], 
-                                padding="max_length", truncation=True, max_length=self.max_length)
-        model_inputs["labels"] = labels["input_ids"]
-        return model_inputs
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True, drop_last=True)
+        return DataLoader(self.train_datasets, batch_size=self.batch_size, collate_fn=self.data_collator, shuffle=True, drop_last=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
+        return DataLoader(self.val_datasets, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
+        return DataLoader(self.test_datasets, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
 
 def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
     print(f"Training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}")

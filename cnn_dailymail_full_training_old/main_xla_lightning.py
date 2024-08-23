@@ -38,10 +38,10 @@ model_name = "google-t5/t5-small"
 bert_score_model_to_use = "microsoft/deberta-large-mnli"
 max_length = 512
 dataset_name = "cnn_dailymail"
-train_range = 3500
-test_range = 350
-val_range = 350
-epochs = 1
+train_range = 35000
+test_range = 3500
+val_range = 3500
+epochs = 5
 
 class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", generation_max_tokens=20, bert_score_model_to_use="microsoft/deberta-large-mnli", **optimizer_params):        
@@ -254,6 +254,13 @@ class T5SummarizationDataModule(pl.LightningDataModule):
             self.val_dataset = self._get_or_process_dataset('val')
         if stage == 'test' or stage is None:
             self.test_dataset = self._get_or_process_dataset('test')
+            
+        # print(f"Setup complete. Datasets sizes: Train: {len(self.train_dataset)}, Val: {len(self.val_dataset)}, Test: {len(self.test_dataset)}")
+        # # Set global length for train, val, and test datasets, to save in the output file after hyperparameter tuning
+        # global train_range, val_range, test_range
+        # train_range = len(self.train_dataset)
+        # val_range = len(self.val_dataset)
+        # test_range = len(self.test_dataset)
             
     def _get_or_process_dataset(self, split):
         cache_file = os.path.join(self.cache_dir, f"{split}_{self.seed_num}.pkl")

@@ -37,10 +37,10 @@ max_length = {
 model_name = "google-t5/t5-small"
 bert_score_model_to_use = "microsoft/deberta-large-mnli"
 max_length = 512
-dataset_name = "cnn_dailymail"
-train_range = 3500
-test_range = 350
-val_range = 350
+dataset_name = "Samsung/samsum"
+train_range = 14732
+test_range = 820 # max
+val_range = 820 # max
 epochs = 1
 
 class T5SummarizationModule(pl.LightningModule):
@@ -233,14 +233,14 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         self.seed_num = seed_num
         self.tokenizer = None
         self.data_collator = None
-        self.train_dataset = None
-        self.val_dataset = None
-        self.test_dataset = None
+        self.train_dataset = 0
+        self.val_dataset = 0
+        self.test_dataset = 0
         self.cache_dir = f"./dataset_cache_{self.seed_num}"
 
     def prepare_data(self):
         # Downloading data, called only once on 1 GPU/TPU in distributed settings
-        load_dataset(self.dataset_name, '3.0.0',  trust_remote_code=True).shuffle(seed=self.seed_num)
+        load_dataset(self.dataset_name,  trust_remote_code=True).shuffle(seed=self.seed_num)
         AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage):
@@ -264,7 +264,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
                 return pickle.load(f)
         
         print(f"Processing {split} dataset...")
-        dataset = load_dataset(self.dataset_name, '3.0.0',  trust_remote_code=True).shuffle(seed=self.seed_num)
+        dataset = load_dataset(self.dataset_name,  trust_remote_code=True).shuffle(seed=self.seed_num)
         
         if split == 'train':
             data = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
@@ -295,10 +295,10 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         
     def _preprocess_function(self, examples):
         prefix = "summarize: "
-        inputs = [prefix + doc for doc in examples["article"]]
+        inputs = [prefix + doc for doc in examples["dialogue"]]
         model_inputs = self.tokenizer(inputs, padding="max_length", 
                                       truncation=True, max_length=self.max_length)
-        labels = self.tokenizer(text_target=examples["highlights"], 
+        labels = self.tokenizer(text_target=examples["summary"], 
                                 padding="max_length", truncation=True, max_length=self.max_length)
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
