@@ -39,10 +39,10 @@ max_length = {
 model_name = "google-t5/t5-small"
 max_length = 512
 dataset_name = "cnn_dailymail"
-train_range = 35000
-test_range = 3500
-val_range = 3500
-epochs = 5
+train_range = 3500
+test_range = 350
+val_range = 350
+epochs = 1
 
 class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", **optimizer_params):        
@@ -272,7 +272,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
                            test_range=test_range,
                            **optimizer_params)
     trainer.logger.log_hyperparams(hyperparameters)
-    trainer.fit(model, datamodule=data_module, ckpt_path="last")
+    trainer.fit(model, datamodule=data_module)
     
     trainer.test(datamodule=data_module, ckpt_path="best")
     wandb.finish()
