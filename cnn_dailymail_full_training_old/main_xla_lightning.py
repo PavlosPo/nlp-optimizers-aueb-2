@@ -213,7 +213,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.data_collator, drop_last=True)
 
-def main(seed, optimizer_name, batch_size, learning_rate):
+def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
     print(f"\nTraining with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}\n")
     
     pl.seed_everything(seed)
@@ -221,6 +221,7 @@ def main(seed, optimizer_name, batch_size, learning_rate):
         model_name=model_name,
         learning_rate=learning_rate,
         optimizer_name=optimizer_name,
+        **optimizer_params
     )
     
     data_module = T5SummarizationDataModule(
@@ -265,7 +266,8 @@ def main(seed, optimizer_name, batch_size, learning_rate):
                            batch_size=batch_size, 
                            train_range=train_range, 
                            val_range=val_range, 
-                           test_range=test_range)
+                           test_range=test_range,
+                           **optimizer_params)
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
     

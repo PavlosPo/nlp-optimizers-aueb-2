@@ -2,6 +2,10 @@ import os
 from main_xla_lightning import main as train_model  # Import the main function from main.py
 
 def read_best_hyperparameters(base_path='./hypertuning_results_full_training/google-t5_t5-small/'):
+    """
+    The read_best_hyperparameters function now reads all hyperparameters under the "Best Hyperparameters" section and adds them to a dictionary.
+    Each key-value pair represents a hyperparameter and its corresponding value.
+    """
     hyperparams = {}
     for optimizer in os.listdir(base_path):
         optimizer_path = os.path.join(base_path, optimizer)
@@ -14,19 +18,24 @@ def read_best_hyperparameters(base_path='./hypertuning_results_full_training/goo
                     with open(hyperparams_file, 'r') as f:
                         lines = f.readlines()
                     
-                    learning_rate = None
+                    hyperparam_dict = {}
                     in_best_hyperparameters = False
                     for line in lines:
-                        if line.strip() == "Best Hyperparameters:":
+                        line = line.strip()
+                        if line == "Best Hyperparameters:":
                             in_best_hyperparameters = True
-                        elif in_best_hyperparameters and "learning_rate:" in line:
-                            learning_rate = float(line.split(":")[1].strip())
-                            break  # Stop after finding the correct learning rate
-                        elif line.strip() == "Search Spaces:":
-                            break  # Stop if we reach the Search Spaces section
+                        elif in_best_hyperparameters:
+                            if line == "Search Spaces:":
+                                break  # Stop if we reach the Search Spaces section
+                            if ":" in line:
+                                key, value = line.split(":")
+                                key = key.strip()
+                                value = value.strip()
+                                if key and value:
+                                    hyperparam_dict[key] = float(value)
                     
-                    if learning_rate is not None:
-                        hyperparams[optimizer][seed_dir] = {'learning_rate': learning_rate}
+                    if hyperparam_dict:
+                        hyperparams[optimizer][seed_dir] = hyperparam_dict
     return hyperparams
 
 def clean_checkpoints():
@@ -46,12 +55,17 @@ def main():
         
         for seed_dir, params in seeds_data.items():
             seed = int(seed_dir.split('_')[1])
-            learning_rate = params['learning_rate']
+            learning_rate = params.pop('learning_rate', None)
             
-            print(f"Running training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}")
+            if learning_rate is None:
+                print(f"Skipping seed {seed} due to missing learning rate.")
+                continue
+            
+            print(f"Running training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and hyperparameters: {params}")
+            print("Additional params: ", params)
             
             # Directly call the main function from main.py
-            train_model(seed, optimizer_name, batch_size, learning_rate)
+            train_model(seed, optimizer_name, batch_size, learning_rate, **params)
             
             clean_checkpoints()
         
