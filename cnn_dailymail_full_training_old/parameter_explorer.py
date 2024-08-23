@@ -79,7 +79,7 @@ def main():
         
         for seed_dir, params in seeds_data.items():
             seed = int(seed_dir.split('_')[1])
-            learning_rate = params.pop('lr', None)
+            learning_rate = params.pop('learning_rate', None)
             
             if learning_rate is None:
                 print(f"Skipping seed {seed} due to missing learning rate.")
