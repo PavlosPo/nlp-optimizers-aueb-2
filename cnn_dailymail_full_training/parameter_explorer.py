@@ -15,7 +15,7 @@ def read_best_hyperparameters(base_path='./hypertuning_results_full_training/goo
     }
     
     if not os.path.exists(base_path):   # Depends on the directory structure
-        base_path = "./hypertuning_results_lr_tuning/"
+        base_path = "./hypertuning_results_lr_tuning/google-t5_t5-small/"
 
     for optimizer in os.listdir(base_path):
         optimizer_path = os.path.join(base_path, optimizer)
