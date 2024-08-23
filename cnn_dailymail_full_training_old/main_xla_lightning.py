@@ -238,7 +238,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
     )
     
     # Initialize WandbLogger
-    wandb.finish()  # In case the last run crashed, this will close the previous run
+    # wandb.finish()  # In case the last run crashed, this will close the previous run
     wandb_logger = WandbLogger(project="t5_summarization_project",
                                name=f"{model_name}_{optimizer_name}_seed_{seed}",
                                log_model=True)
@@ -258,6 +258,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
         num_sanity_val_steps=0,
         accelerator='auto',
         devices='auto',
+        enable_checkpointing=True
     )
     
     hyperparameters = dict(learning_rate=learning_rate, 
@@ -272,7 +273,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
                            test_range=test_range,
                            **optimizer_params)
     trainer.logger.log_hyperparams(hyperparameters)
-    trainer.fit(model, datamodule=data_module)
+    trainer.fit(model, datamodule=data_module, ckpt_path="last")
     
     trainer.test(datamodule=data_module, ckpt_path="best")
     wandb.finish()
