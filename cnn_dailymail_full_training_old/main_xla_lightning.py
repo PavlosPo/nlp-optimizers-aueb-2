@@ -18,7 +18,7 @@ import argparse
 from dotenv import load_dotenv
 
 load_dotenv()           # This is required for the .env file
-nltk.download('punkt')  # This is required for BERTScore to run.
+nltk.download('punkt_tab')  # This is required for BERTScore to run.
 os.environ["TOKENIZERS_PARALLELISM"] = 'false'  # This is required in order not to have Race conditions in TPUs.
 wandb.require("core")   # This is required for W&B to work in future versions.
 
