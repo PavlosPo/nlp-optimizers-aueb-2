@@ -39,10 +39,10 @@ max_length = {
 model_name = "google-t5/t5-small"
 max_length = 512
 dataset_name = "cnn_dailymail"
-train_range = 350
-test_range = 35
-val_range = 35
-epochs = 2
+train_range = 35000
+test_range = 3500
+val_range = 3500
+epochs = 5
 
 class T5SummarizationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", **optimizer_params):        
