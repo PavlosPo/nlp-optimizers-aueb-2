@@ -235,8 +235,6 @@ def main(seed, optimizer_name, batch_size, learning_rate):
     )
     
     # Initialize WandbLogger
-    if wandb.enabled:
-        wandb.finish()
     wandb_logger = WandbLogger(project="t5_summarization_project",
                                name=f"{model_name}_{optimizer_name}_seed_{seed}",
                                log_model=True)
