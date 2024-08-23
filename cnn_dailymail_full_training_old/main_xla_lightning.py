@@ -246,7 +246,8 @@ def main(seed, optimizer_name, batch_size, learning_rate, **optimizer_params):
     checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed}", 
                                           monitor="val_loss", 
                                           mode="min",
-                                          save_top_k=1)
+                                          save_top_k=1,
+                                          save_last=True)
     
     trainer = pl.Trainer(
         max_epochs=epochs,
