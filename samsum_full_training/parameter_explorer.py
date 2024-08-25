@@ -63,7 +63,7 @@ def read_best_hyperparameters(base_path='./hypertuning_results_full_training/goo
                     
                     if hyperparam_dict:
                         hyperparams[optimizer][seed_dir] = hyperparam_dict
-    return hyperparams
+    return hyperparams, training_mode
 
 def clean_checkpoints():
     print("Cleaning checkpoints...")
