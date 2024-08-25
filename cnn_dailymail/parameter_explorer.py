@@ -3,6 +3,7 @@ from main_xla_lightning import main as train_model  # Import the main function f
 
 def read_best_hyperparameters(base_path='./hypertuning_results_full_training/google-t5_t5-small/'):
     hyperparams = {}
+    training_mode = "full_training_mode" # This will be logged for better grouping in wandb
     
     # Mapping optimizer-specific names to generic parameter names to be used in the training with the correct argument names
     param_mapping = {
@@ -16,6 +17,7 @@ def read_best_hyperparameters(base_path='./hypertuning_results_full_training/goo
     
     if not os.path.exists(base_path):   # Depends on the directory structure
         base_path = "./hypertuning_results_lr_tuning/google-t5_t5-small/"
+        training_mode = "lr_only_training_mode"
 
     for optimizer in os.listdir(base_path):
         optimizer_path = os.path.join(base_path, optimizer)
@@ -61,7 +63,7 @@ def read_best_hyperparameters(base_path='./hypertuning_results_full_training/goo
                     
                     if hyperparam_dict:
                         hyperparams[optimizer][seed_dir] = hyperparam_dict
-    return hyperparams
+    return hyperparams, training_mode
 
 def clean_checkpoints():
     print("Cleaning checkpoints...")
@@ -72,7 +74,7 @@ def clean_checkpoints():
     print("Finished cleaning checkpoints")
 
 def main():
-    hyperparams_per_optimizer = read_best_hyperparameters()
+    hyperparams_per_optimizer, training_mode = read_best_hyperparameters()
     batch_size = 16  # Add or modify batch sizes as needed
     
     for optimizer_name, seeds_data in hyperparams_per_optimizer.items():
@@ -88,7 +90,7 @@ def main():
                 print(f"Skipping seed {seed} due to missing learning rate.")
                 continue
             # Directly call the main function from main.py, explicitly passing the learning rate and other params
-            train_model(seed, optimizer_name, batch_size, learning_rate, **params)
+            train_model(seed, optimizer_name, batch_size, learning_rate, training_mode=training_mode, **params)
             clean_checkpoints()
         
         print(f"Finished exploring all configurations for optimizer: {optimizer_name}\n")
