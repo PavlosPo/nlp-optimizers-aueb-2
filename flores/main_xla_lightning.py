@@ -222,7 +222,7 @@ class T5TranslationModule(pl.LightningModule):
 class T5TranslationDataModule(pl.LightningDataModule):
     def __init__(self, model_name, dataset_name, max_length, 
                  batch_size, train_range, val_range, test_range, seed_num,
-                 languages):
+                 languages = ["deu_Latn", "fra_Latn", "ron_Latn"]):
         super().__init__()
         self.model_name = model_name
         self.dataset_name = dataset_name
