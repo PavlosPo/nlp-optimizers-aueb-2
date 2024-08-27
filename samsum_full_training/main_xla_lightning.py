@@ -399,13 +399,9 @@ if __name__ == "__main__":
     
     # Convert args to dictionary and remove None values
     optimizer_params = {k: v for k, v in vars(args).items() if k not in ["seed", "optim", "batch_size", "learning_rate", "training_mode"] and v is not None}
-    
-    # Convert betas tuple to list if it exists
+
     if "betas" in optimizer_params:
+        # Convert Making it tuple for compatibility
         optimizer_params["betas"] = tuple(optimizer_params["betas"])
-        ic.enable()
-        ic(optimizer_params["betas"])
-        ic.disable()
-        # print(f"\n\nOptimizer Betas run as: {optimizer_params["betas"]}\n\n")
     
     main(args.seed, args.optim, args.batch_size, args.learning_rate, args.training_mode, **optimizer_params)
