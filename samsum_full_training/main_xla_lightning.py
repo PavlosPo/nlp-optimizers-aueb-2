@@ -409,6 +409,9 @@ if __name__ == "__main__":
     # Convert betas tuple to list if it exists
     if "betas" in optimizer_params:
         optimizer_params["betas"] = tuple(optimizer_params["betas"])
-        print(f"\n\nOptimizer Betas run as: {optimizer_params["betas"]}\n\n")
+        ic.enable()
+        ic(optimizer_params["betas"])
+        ic.disable()
+        # print(f"\n\nOptimizer Betas run as: {optimizer_params["betas"]}\n\n")
     
     main(args.seed, args.optim, args.batch_size, args.learning_rate, args.training_mode, **optimizer_params)
