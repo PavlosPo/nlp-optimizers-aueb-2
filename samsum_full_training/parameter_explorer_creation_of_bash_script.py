@@ -84,6 +84,7 @@ def generate_bash_script(hyperparams, training_mode):
             for param, value in params.items():
                 if param == 'betas':
                     command += f" --{param} {value[0]}, {value[1]}"
+                    continue
                 command += f" --{param} {value}"
                 
             command += f" --training_mode {training_mode}"
