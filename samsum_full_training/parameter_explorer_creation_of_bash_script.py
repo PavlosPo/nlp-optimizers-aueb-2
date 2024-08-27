@@ -82,6 +82,8 @@ def generate_bash_script(hyperparams, training_mode):
             command = f"PJRT_DEVICE=TPU python main_xla_lightning.py --seed {seed} --optim {optimizer_name} --batch_size 16 --learning_rate {learning_rate}"
             
             for param, value in params.items():
+                if param == 'betas':
+                    command += f" --{param} {value[0]}, {value[1]}"
                 command += f" --{param} {value}"
                 
             command += f" --training_mode {training_mode}"
