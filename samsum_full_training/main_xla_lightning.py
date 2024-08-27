@@ -386,11 +386,8 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, required=True, help="Learning rate for training")
     parser.add_argument("--training_mode", type=str, default="None", help="Training mode")
     
-    def list_of_floats(arg):
-        return list(map(float, arg.split(',')))
-    
     # Add arguments for all possible optimizer parameters
-    parser.add_argument("--betas", nargs=2, type=list_of_floats, help="Beta parameters for Adam-like optimizers")
+    parser.add_argument("--betas", nargs=2, type=float, help="Beta parameters for Adam-like optimizers")
     parser.add_argument("--eps", type=float, help="Epsilon parameter for optimizers")
     parser.add_argument("--momentum", type=float, help="Momentum parameter for SGD")
     parser.add_argument("--alpha", type=float, help="Alpha parameter for RMSprop")
@@ -402,9 +399,6 @@ if __name__ == "__main__":
     
     # Convert args to dictionary and remove None values
     optimizer_params = {k: v for k, v in vars(args).items() if k not in ["seed", "optim", "batch_size", "learning_rate", "training_mode"] and v is not None}
-    
-    # Define a custom argument type for a list of strings
-    
     
     # Convert betas tuple to list if it exists
     if "betas" in optimizer_params:
