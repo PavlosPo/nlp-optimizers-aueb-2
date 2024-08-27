@@ -312,9 +312,10 @@ class T5SummarizationDataModule(pl.LightningDataModule):
 def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", **optimizer_params):
     ic.disable()
     print(f"Training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}")
+    print(f"Training mode: {training_mode}")
     for key, value in optimizer_params.items():
         print(f"Using additional hyperparameter: {key} = {value}")
-    
+
     pl.seed_everything(seed)
     model = T5SummarizationModule(
         model_name=model_name,
@@ -322,7 +323,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", 
         optimizer_name=optimizer_name,
         **optimizer_params
     )
-    
+
     data_module = T5SummarizationDataModule(
         model_name=model_name,
         dataset_name=dataset_name,
@@ -333,18 +334,18 @@ def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", 
         test_range=test_range,
         seed_num=seed
     )
-    
+
     # Initialize WandbLogger
     wandb.finish()  # In case the last run crashed, this will close the previous run
     wandb_logger = WandbLogger(project="t5_summarization_project",
                                name=f"{model_name}_{optimizer_name}_seed_{seed}",
                                log_model=True)
-    
+
     checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed}", 
                                           monitor="val_loss", 
                                           mode="min",
                                           save_last=True)
-    
+
     trainer = pl.Trainer(
         max_epochs=epochs,
         logger=wandb_logger,  # Use W&B logger here
@@ -356,7 +357,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", 
         devices='auto',
         enable_checkpointing=True
     )
-    
+
     hyperparameters = dict(learning_rate=learning_rate, 
                            optimizer_name=optimizer_name, 
                            seed_num=seed, 
@@ -372,7 +373,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", 
                            **optimizer_params)
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
-    
+
     trainer.test(datamodule=data_module, ckpt_path="best")
     wandb.finish()
     print(f"\nFinished training with seed {seed}")
@@ -383,6 +384,24 @@ if __name__ == "__main__":
     parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
     parser.add_argument("--learning_rate", type=float, required=True, help="Learning rate for training")
-    # TIP: Can add more arguments as optimizers params, can also add them as **kwargs in the main() call below.
+    parser.add_argument("--training_mode", type=str, default="None", help="Training mode")
+    
+    # Add arguments for all possible optimizer parameters
+    parser.add_argument("--betas", nargs=2, type=float, help="Beta parameters for Adam-like optimizers")
+    parser.add_argument("--eps", type=float, help="Epsilon parameter for optimizers")
+    parser.add_argument("--momentum", type=float, help="Momentum parameter for SGD")
+    parser.add_argument("--alpha", type=float, help="Alpha parameter for RMSprop")
+    parser.add_argument("--weight_decay", type=float, help="Weight decay parameter")
+    parser.add_argument("--amsgrad", action="store_true", help="Whether to use the AMSGrad variant for Adam")
+    parser.add_argument("--momentum_decay", type=float, help="Momentum decay for NAdam")
+    
     args = parser.parse_args()
-    main(args.seed, args.optim, args.batch_size, args.learning_rate)
+    
+    # Convert args to dictionary and remove None values
+    optimizer_params = {k: v for k, v in vars(args).items() if k not in ["seed", "optim", "batch_size", "learning_rate", "training_mode"] and v is not None}
+    
+    # Convert betas tuple to list if it exists
+    if "betas" in optimizer_params:
+        optimizer_params["betas"] = list(optimizer_params["betas"])
+    
+    main(args.seed, args.optim, args.batch_size, args.learning_rate, args.training_mode, **optimizer_params)
