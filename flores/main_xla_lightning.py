@@ -438,8 +438,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", 
     # Initialize WandbLogger
     wandb.finish()  # In case the last run crashed, this will close the previous run
     wandb_logger = WandbLogger(project="t5_translation_project",
-                               name=f"{model_name}_{optimizer_name}_seed_{seed}",
-                               log_model=True)
+                               name=f"{model_name}_{optimizer_name}_seed_{seed}")
 
     checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed}", 
                                           monitor="val_loss", 
@@ -501,6 +500,6 @@ if __name__ == "__main__":
     
     # Convert betas tuple to list if it exists
     if "betas" in optimizer_params:
-        optimizer_params["betas"] = list(optimizer_params["betas"])
+        optimizer_params["betas"] = tuple(optimizer_params["betas"])
     
     main(args.seed, args.optim, args.batch_size, args.learning_rate, args.training_mode, **optimizer_params)
