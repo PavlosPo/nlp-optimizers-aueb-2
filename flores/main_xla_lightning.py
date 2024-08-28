@@ -289,7 +289,7 @@ class T5TranslationDataModule(pl.LightningDataModule):
                 temp2 = dataset['devtest']
                 # concat the two splits, and get 80% train and 10% test and 10% validation
                 # total dataset
-                dataset = concatenate_datasets([temp1, temp2]).train_test_split(test_size=0.8, seed=self.seed_num, shuffle=True)
+                dataset = concatenate_datasets([temp1, temp2]).train_test_split(test_size=0.2, seed=self.seed_num, shuffle=True)
                 
                 if split == 'train':
                     data = dataset['train']
