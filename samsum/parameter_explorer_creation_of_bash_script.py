@@ -82,6 +82,10 @@ def generate_bash_script(hyperparams, training_mode):
             command = f"PJRT_DEVICE=TPU python main_xla_lightning.py --seed {seed} --optim {optimizer_name} --batch_size 16 --learning_rate {learning_rate}"
             
             for param, value in params.items():
+                if param == 'betas':
+                    # Pass two values for betas and continue to next parameter
+                    command += f" --{param} {value[0]} {value[1]}"
+                    continue
                 command += f" --{param} {value}"
                 
             command += f" --training_mode {training_mode}"
@@ -89,6 +93,7 @@ def generate_bash_script(hyperparams, training_mode):
             script_content += f"echo 'Running command: {command}'\n"
             
             script_content += f"{command}\n\n"
+            script_content += "rm -rf ./checkpoints**/" # Remove checkpoints to save disk space
             script_content += "if [ $? -ne 0 ]; then\n"
             script_content += "    echo 'Error occurred. Exiting.'\n"
             script_content += "    exit 1\n"

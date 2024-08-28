@@ -93,6 +93,7 @@ def generate_bash_script(hyperparams, training_mode):
             script_content += f"echo 'Running command: {command}'\n"
             
             script_content += f"{command}\n\n"
+            script_content += "rm -rf ./checkpoints**/" # Remove checkpoints to save disk space
             script_content += "if [ $? -ne 0 ]; then\n"
             script_content += "    echo 'Error occurred. Exiting.'\n"
             script_content += "    exit 1\n"
