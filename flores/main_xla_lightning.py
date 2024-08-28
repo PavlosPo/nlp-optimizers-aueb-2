@@ -305,6 +305,7 @@ class T5TranslationDataModule(pl.LightningDataModule):
                     selected_data = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)['test']
                     data = selected_data.select(range(min(self.test_range, len(selected_data))))
                 
+                
                 processed_dataset = self._preprocess_dataset(data, language)
                 
                 os.makedirs(self.cache_dir, exist_ok=True)
