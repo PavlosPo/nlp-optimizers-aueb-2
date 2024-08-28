@@ -323,8 +323,39 @@ def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", 
     ic.disable()
     print(f"Training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}")
     print(f"Training mode: {training_mode}")
-    for key, value in optimizer_params.items():
-        print(f"Using additional hyperparameter: {key} = {value}")
+
+    # Optimizer-specific hyperparameter filtering
+    optimizer_name_lower = optimizer_name.lower()
+    filtered_params = {}
+
+    if optimizer_name_lower in ['adam', 'adamw', 'adamax', 'nadam']:
+        # Common parameters for Adam-like optimizers
+        if "betas" in optimizer_params:
+            filtered_params["betas"] = optimizer_params["betas"]
+        if "eps" in optimizer_params:
+            filtered_params["eps"] = optimizer_params["eps"]
+    if optimizer_name_lower in ['sgd', 'sgdm']:
+        # Parameters specific to SGD and SGDM
+        if "momentum" in optimizer_params:
+            filtered_params["momentum"] = optimizer_params["momentum"]
+    if optimizer_name_lower == 'rmsprop':
+        # Parameters specific to RMSprop
+        if "alpha" in optimizer_params:
+            filtered_params["alpha"] = optimizer_params["alpha"]
+        if "momentum" in optimizer_params:
+            filtered_params["momentum"] = optimizer_params["momentum"]
+    if optimizer_name_lower == 'nadam':
+        # NAdam-specific parameter
+        if "momentum_decay" in optimizer_params:
+            filtered_params["momentum_decay"] = optimizer_params["momentum_decay"]
+
+    # # Add weight_decay if provided (common to all optimizers)
+    # if "weight_decay" in optimizer_params:
+    #     filtered_params["weight_decay"] = optimizer_params["weight_decay"]
+
+    # Log filtered parameters
+    for key, value in filtered_params.items():
+        print(f"Using hyperparameter: {key} = {value}")
 
     pl.seed_everything(seed)
     model = T5SummarizationModule(
@@ -401,8 +432,8 @@ if __name__ == "__main__":
     parser.add_argument("--eps", type=float, help="Epsilon parameter for optimizers")
     parser.add_argument("--momentum", type=float, help="Momentum parameter for SGD")
     parser.add_argument("--alpha", type=float, help="Alpha parameter for RMSprop")
-    parser.add_argument("--weight_decay", type=float, help="Weight decay parameter")
-    parser.add_argument("--amsgrad", action="store_true", help="Whether to use the AMSGrad variant for Adam")
+    # parser.add_argument("--weight_decay", type=float, help="Weight decay parameter")
+    # parser.add_argument("--amsgrad", action="store_true", help="Whether to use the AMSGrad variant for Adam")
     parser.add_argument("--momentum_decay", type=float, help="Momentum decay for NAdam")
     
     args = parser.parse_args()
