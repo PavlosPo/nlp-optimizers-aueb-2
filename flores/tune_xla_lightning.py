@@ -193,20 +193,43 @@ class T5TranslationDataModule(pl.LightningDataModule):
                     dataset = pickle.load(f)
                 print(f"Loaded {split} dataset for {language} with {len(dataset)} samples")
             else:
+                # # TODO: Check if this is correct, to use temp1, temp2
+                # print(f"Processing {split} dataset for {language}...")
+                # dataset = load_dataset(self.dataset_name, 'all',  trust_remote_code=True)['dev'].shuffle(seed=self.seed_num)
+                # temp1 = dataset['test']
+                # temp2 = dataset['validation']
+                # # concat the two splits
+                # dataset = concatenate_datasets([temp1, temp2]).train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
+                
+                # if split == 'train':
+                #     data = dataset.select(range(min(self.train_range, len(dataset))))
+                # elif split == 'validation':
+                #     data = dataset.select(range(min(self.val_range, len(dataset))))
+                # elif split == 'test':
+                #     data = dataset.select(range(min(self.test_range, len(dataset))))
+                
                 # TODO: Check if this is correct, to use temp1, temp2
                 print(f"Processing {split} dataset for {language}...")
-                dataset = load_dataset(self.dataset_name, 'all',  trust_remote_code=True)['dev'].shuffle(seed=self.seed_num)
-                temp1 = dataset['test']
-                temp2 = dataset['validation']
-                # concat the two splits
-                dataset = concatenate_datasets([temp1, temp2]).train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)
+                dataset = load_dataset(self.dataset_name, 'all',  trust_remote_code=True)
+                temp1 = dataset['dev']
+                temp2 = dataset['devtest']
+                # concat the two splits, and get 80% train and 10% test and 10% validation
+                # total dataset
+                dataset = concatenate_datasets([temp1, temp2]).train_test_split(test_size=0.2, seed=self.seed_num, shuffle=True)
                 
                 if split == 'train':
-                    data = dataset.select(range(min(self.train_range, len(dataset))))
+                    data = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
                 elif split == 'validation':
-                    data = dataset.select(range(min(self.val_range, len(dataset))))
+                    # Split again into train and test, and select train as the validation set
+                    # 10% of the total dataset is selected as the validation set
+                    selected_data = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)['train']
+                    data = selected_data.select(range(min(self.test_range, len(selected_data))))
+                    
                 elif split == 'test':
-                    data = dataset.select(range(min(self.test_range, len(dataset))))
+                    # Split again into train and test, and select test as the test set
+                    # 10% of the total dataset is selected as the test set
+                    selected_data = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)['test']
+                    data = selected_data.select(range(min(self.test_range, len(selected_data))))
                 
                 processed_dataset = self._preprocess_dataset(data, language)
                 
