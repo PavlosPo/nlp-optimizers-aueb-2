@@ -386,6 +386,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", 
     ic.disable()
     print(f"Training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}")
     print(f"Training mode: {training_mode}")
+    
 
     # Optimizer-specific hyperparameter filtering
     optimizer_name_lower = optimizer_name.lower()
