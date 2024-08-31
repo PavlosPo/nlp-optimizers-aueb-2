@@ -66,13 +66,14 @@ batch_size = args.batch_size
 language_to_choose = ["deu_Latn", "fra_Latn", "ron_Latn"] # German, French, Romanian
 
 class T5TranslationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw"):        
+    def __init__(self, model_name, learning_rate, optimizer_name="adamw", **optimizer_params):        
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
+        self.optimizer_params = optimizer_params
         self.val_loss = MeanMetric()
 
     def forward(self, input_ids, attention_mask, labels=None):
@@ -113,28 +114,28 @@ class T5TranslationModule(pl.LightningModule):
 
     def _get_optimizer(self):
         if self.optimizer_name == "adamw":
-            return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
+            return torch.optim.AdamW(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "sgd":
-            return torch.optim.SGD(self.parameters(), lr=self.learning_rate)
+            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "sgdm":
             # Default Momentum 0.9
-            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=0.9)
+            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=0.9, **self.optimizer_params)
         elif self.optimizer_name == "adam":
-            return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+            return torch.optim.Adam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "nadam":
-            return torch.optim.NAdam(self.parameters(), lr=self.learning_rate)
+            return torch.optim.NAdam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adagrad":
-            return torch.optim.Adagrad(self.parameters(), lr=self.learning_rate)
+            return torch.optim.Adagrad(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adadelta":
-            return torch.optim.Adadelta(self.parameters(), lr=self.learning_rate)
+            return torch.optim.Adadelta(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "rmsprop":
-            return torch.optim.RMSprop(self.parameters(), lr=self.learning_rate)
+            return torch.optim.RMSprop(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "rprop":
-            return torch.optim.Rprop(self.parameters(), lr=self.learning_rate)
+            return torch.optim.Rprop(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adamax":
-            return torch.optim.Adamax(self.parameters(), lr=self.learning_rate)
+            return torch.optim.Adamax(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adabound":
-            return t_optim.AdaBound(self.parameters(), lr=self.learning_rate)
+            return t_optim.AdaBound(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
 
@@ -443,18 +444,7 @@ def main():
         for key, value in trial.params.items():
             f.write(f"{key}: {value}\n")
         f.write("Search Spaces:\n")
-        f.write(f"  learning_rate: {learning_rate_range}\n")
-        f.write(f"  beta1: ({betas_range['beta1'][0]}, {betas_range['beta1'][1]})\n")
-        f.write(f"  beta2: ({betas_range['beta2'][0]}, {betas_range['beta2'][1]})\n")
-        f.write(f"  eps: {eps_range}\n")
-        if optimizer_name == "adabound":
-            f.write(f"  gamma: {adabound_gamma}\n")
-            f.write(f"  final_lr: {adabound_final_lr}\n")
-            f.write(f"  weight_decay: {adabound_weight_decay}\n")
-        if optimizer_name == "nadam":
-            f.write(f"  momentum: {nadam_momentum_range}\n")
-        if optimizer_name == "sgdm":
-            f.write(f"  momentum: {sgdm_momentum_range}\n")
+        f.write(f" learning_rate: {learning_rate_range}\n")
 
 if __name__ == "__main__":
     main()
