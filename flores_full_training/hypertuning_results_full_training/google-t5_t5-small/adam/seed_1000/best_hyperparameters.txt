@@ -1,0 +1,15 @@
+Seed: 1000
+Model: google-t5/t5-small
+Dataset: facebook/flores
+Optimizer: adam
+Training range: 1000
+Test range: 1000
+Validation range: 1000
+Best Validation Loss: 0.0774906650185585
+Best Hyperparameters:
+learning_rate: 0.00025871397011227164
+adam_beta1: 0.8485586459876597
+adam_beta2: 0.9106128034343149
+adam_epsilon: 9.904385700619886e-08
+Search Spaces:
+ learning_rate: (1e-07, 0.001)
