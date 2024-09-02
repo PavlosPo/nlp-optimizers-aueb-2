@@ -1,0 +1,16 @@
+Seed: 1
+Model: google-t5/t5-small
+Dataset: facebook/flores
+Optimizer: nadam
+Training range: 1000
+Test range: 1000
+Validation range: 1000
+Best Validation Loss: 0.07977430522441864
+Best Hyperparameters:
+learning_rate: 0.0002324595026062325
+nadam_beta1: 0.8655452605624302
+nadam_beta2: 0.9062409397681345
+nadam_epsilon: 1.0865477499776016e-08
+momentum_decay: 0.003987129855400066
+Search Spaces:
+ learning_rate: (1e-07, 0.001)
