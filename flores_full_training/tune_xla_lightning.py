@@ -118,8 +118,7 @@ class T5TranslationModule(pl.LightningModule):
         elif self.optimizer_name == "sgd":
             return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "sgdm":
-            # Default Momentum 0.9
-            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=0.9, **self.optimizer_params)
+            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adam":
             return torch.optim.Adam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "nadam":
