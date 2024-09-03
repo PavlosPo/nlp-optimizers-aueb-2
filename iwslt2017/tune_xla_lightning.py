@@ -45,7 +45,7 @@ max_length = 512
 dataset_name = "IWSLT/iwslt2017"
 
 seed_num = args.seed
-train_range = 1000
+train_range = 10000 # Each language will have 10000 samples pairs = 30000 samples for 3 languages in total
 test_range = 1000
 val_range = 1000
 epochs = 5
