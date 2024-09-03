@@ -154,10 +154,14 @@ class T5TranslationDataModule(pl.LightningDataModule):
         }
 
     def prepare_data(self):
-        for lang in self.language_codes.keys():
-            code = self.language_codes[lang]
-            self.datasets[lang] = load_dataset(self.dataset_name, code, trust_remote_code=True)
-            self.datasets[lang] = self.datasets[lang].shuffle(seed=self.seed_num)
+        # for lang in self.language_codes.keys():
+        #     code = self.language_codes[lang]
+        #     self.datasets[lang] = load_dataset(self.dataset_name, code, trust_remote_code=True)
+        #     self.datasets[lang] = self.datasets[lang].shuffle(seed=self.seed_num)
+        
+        self.datasets['Romanian'] = load_dataset(self.dataset_name, self.language_codes['Romanian'], trust_remote_code=True).shuffle(seed=self.seed_num)
+        self.datasets['German'] = load_dataset(self.dataset_name, self.language_codes['German'], trust_remote_code=True).shuffle(seed=self.seed_num)
+        self.datasets['French'] = load_dataset(self.dataset_name, self.language_codes['French'], trust_remote_code=True).shuffle(seed=self.seed_num)
 
         # Download tokenizer
         AutoTokenizer.from_pretrained(self.model_name)
