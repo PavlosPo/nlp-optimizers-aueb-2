@@ -93,7 +93,13 @@ def generate_bash_script(hyperparams, training_mode):
             script_content += f"echo 'Running command: {command}'\n"
             
             script_content += f"{command}\n\n"
-            script_content += "rm -rf ./checkpoints**/\n\n" # Remove checkpoints to save disk space
+            script_content += "echo 'Removing checkpoints in 10 seconds...'\n"
+            script_content += "sleep 10\n" # Wait 10 seconds
+            script_content += "rm -rf ./checkpoints**/\n" # Remove checkpoints to save disk space
+            script_content += "echo 'Killing python child processes in 5 seconds...'\n"
+            script_content += "sleep 5\n" # Wait 5 seconds
+            script_content += "sudo pkill -f python\n"
+            script_content += "sleep 5\n" # Wait 5 seconds
             script_content += "if [ $? -ne 0 ]; then\n"
             script_content += "    echo 'Error occurred. Exiting.'\n"
             script_content += "    exit 1\n"
