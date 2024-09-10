@@ -42,9 +42,10 @@ max_length = {
 }
 model_name = "google-t5/t5-small"
 max_length = 512
-dataset_name = "facebook/flores"
+dataset_name = "IWSLT/iwslt2017"
+
 seed_num = args.seed
-train_range = 1000
+train_range = 10000 # Each language will have 10000 samples pairs = 30000 samples for 3 languages in total
 test_range = 1000
 val_range = 1000
 epochs = 5
@@ -61,9 +62,6 @@ adabound_gamma = (1e-4, 2e-3)
 adabound_final_lr = (1e-2, 1e-1)
 adabound_weight_decay = (1e-2, 1e-1)
 batch_size = args.batch_size
-# https://github.com/facebookresearch/flores/blob/main/flores200/README.md
-# Do not put English, already retrieved as the input of the model.
-language_to_choose = ["deu_Latn", "fra_Latn", "ron_Latn"] # German, French, Romanian
 
 class T5TranslationModule(pl.LightningModule):
     def __init__(self, model_name, learning_rate, optimizer_name="adamw", **optimizer_params):        
@@ -135,32 +133,45 @@ class T5TranslationModule(pl.LightningModule):
             return torch.optim.Adamax(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
         elif self.optimizer_name == "adabound":
             return t_optim.AdaBound(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
-        else:
-            raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
 
 class T5TranslationDataModule(pl.LightningDataModule):
     def __init__(self, model_name, dataset_name, max_length, 
-                 batch_size, train_range, val_range, test_range, seed_num,
-                 languages):
+                 batch_size, train_range, val_range, test_range, seed_num):
         super().__init__()
         self.model_name = model_name
         self.dataset_name = dataset_name
         self.max_length = max_length
         self.batch_size = batch_size
         self.train_range = train_range
-        self.val_range = val_range
+        self.val_range = val_range 
         self.test_range = test_range
         self.seed_num = seed_num
-        self.languages = languages
         self.tokenizer = None
         self.data_collator = None
         self.train_datasets = []
         self.val_datasets = []
         self.test_datasets = []
         self.cache_dir = f"./dataset_cache_{self.seed_num}"
+        self.datasets = {}
+        # Load datasets for each language pair
+        self.language_codes = {
+            "Romanian": "iwslt2017-en-ro",
+            "German": "iwslt2017-en-de",
+            "French": "iwslt2017-en-fr"
+        }
 
     def prepare_data(self):
-        load_dataset(self.dataset_name, 'all', trust_remote_code=True).shuffle(seed=self.seed_num)
+        # for lang in self.language_codes.keys():
+        #     code = self.language_codes[lang]
+        #     self.datasets[lang] = load_dataset(self.dataset_name, code, trust_remote_code=True)
+        #     self.datasets[lang] = self.datasets[lang].shuffle(seed=self.seed_num)
+        
+        # Loads one time to download, in one machine if in distributed training.
+        self.datasets['Romanian'] = load_dataset(self.dataset_name, self.language_codes['Romanian'], trust_remote_code=True).shuffle(seed=self.seed_num)
+        self.datasets['German'] = load_dataset(self.dataset_name, self.language_codes['German'], trust_remote_code=True).shuffle(seed=self.seed_num)
+        self.datasets['French'] = load_dataset(self.dataset_name, self.language_codes['French'], trust_remote_code=True).shuffle(seed=self.seed_num)
+
+        # Download tokenizer
         AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage=None):
@@ -174,57 +185,35 @@ class T5TranslationDataModule(pl.LightningDataModule):
             self.test_datasets = self._get_or_process_dataset('test')
         
         print(f"Setup complete. Datasets sizes: Train: {len(self.train_datasets)}, Val: {len(self.val_datasets)}, Test: {len(self.test_datasets)}")
-        # Set global length for train, val, and test datasets, to save in the output file after hyperparameter tuning
-        global train_range, val_range, test_range
-        train_range = len(self.train_datasets)
-        val_range = len(self.val_datasets)
-        test_range = len(self.test_datasets)
 
     def _get_or_process_dataset(self, split):
-        # Create combined dataset from all language pairs
         combined_dataset = []
         
-        for language in self.languages: 
-            """
-            This loop runs once per language code.
-            Each language code creates a cache file with the same name in the cache directory.
-            If the cache file exists, the dataset is loaded from the cache file.
-            If the cache file does not exist, the dataset is loaded from the original dataset and saved in the cache file.
-            The dataset is then added to the combined dataset in order to return the combined dataset with all the language 
-            pairs that have been set in the 'language_to_choose' list.
-            """
+        for language in self.language_codes.keys():
             cache_file = os.path.join(self.cache_dir, f"{split}_{language}_{self.seed_num}.pkl")
             
             if os.path.exists(cache_file):
                 print(f"Loading cached {split} dataset for {language}...")
                 with open(cache_file, 'rb') as f:
                     dataset = pickle.load(f)
-                print(f"Loaded {split} dataset for {language} with {len(dataset)} samples")
             else:
-                # TODO: Check if this is correct, to use temp1, temp2
-                print(f"Processing {split} dataset for {language}...")
-                dataset = load_dataset(self.dataset_name, 'all',  trust_remote_code=True)
-                temp1 = dataset['dev']
-                temp2 = dataset['devtest']
-                # concat the two splits, and get 80% train and 10% test and 10% validation
-                # total dataset
-                dataset = concatenate_datasets([temp1, temp2]).train_test_split(test_size=0.2, seed=self.seed_num, shuffle=True)
-                
+                # Load per machine..
+                self.datasets['Romanian'] = load_dataset(self.dataset_name, self.language_codes['Romanian'], trust_remote_code=True).shuffle(seed=self.seed_num)
+                self.datasets['German'] = load_dataset(self.dataset_name, self.language_codes['German'], trust_remote_code=True).shuffle(seed=self.seed_num)
+                self.datasets['French'] = load_dataset(self.dataset_name, self.language_codes['French'], trust_remote_code=True).shuffle(seed=self.seed_num)
+        
+                print(f"Processing {split} dataset for {language}...")                
                 if split == 'train':
-                    data = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
+                    train_dataset = self.datasets[language]['train']
+                    dataset = train_dataset.select(range(min(self.train_range, len(train_dataset))))
                 elif split == 'validation':
-                    # Split again into train and test, and select train as the validation set
-                    # 10% of the total dataset is selected as the validation set
-                    selected_data = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)['train']
-                    data = selected_data.select(range(min(self.test_range, len(selected_data))))
-                    
+                    val_dataset = self.datasets[language]['validation']
+                    dataset = val_dataset.select(range(min(self.val_range, len(val_dataset))))
                 elif split == 'test':
-                    # Split again into train and test, and select test as the test set
-                    # 10% of the total dataset is selected as the test set
-                    selected_data = dataset['test'].train_test_split(test_size=0.5, seed=self.seed_num, shuffle=True)['test']
-                    data = selected_data.select(range(min(self.test_range, len(selected_data))))
+                    test_dataset = self.datasets[language]['test']
+                    dataset = test_dataset.select(range(min(self.test_range, len(test_dataset))))
                 
-                processed_dataset = self._preprocess_dataset(data, language)
+                processed_dataset = self._preprocess_dataset(dataset, language)
                 
                 os.makedirs(self.cache_dir, exist_ok=True)
                 with open(cache_file, 'wb') as f:
@@ -232,49 +221,24 @@ class T5TranslationDataModule(pl.LightningDataModule):
                 
                 dataset = processed_dataset
             
+            print(f"Loaded {split} dataset for {language} with {len(dataset)} samples")
             combined_dataset.extend(dataset)
         
         return combined_dataset
     
-    def _preprocess_dataset(self, dataset, target_language_code):
-        """
-        Preprocess the dataset by mapping the language codes to their corresponding names.
-        For example, "deu_Latn" maps to "German" in the German dataset. 
-        This is given in the link: 
-        https://github.com/facebookresearch/flores/blob/main/flores200/README.md
-        
-        The function also maps the target language code to the corresponding name.
-        The function returns the preprocessed dataset.
-
-        Args:
-            dataset (_dataset_): The dataset to preprocess. 
-            target_language_code (str): The target language code.
-
-        Returns:
-            _dataset_: The preprocessed dataset.
-        """
-        mapping = {
-            "deu_Latn": "German",
-            "fra_Latn": "French",
-            "ron_Latn": "Romanian"
-        }
-        target_lang_name = mapping[target_language_code]
-
+    def _preprocess_dataset(self, dataset, target_language):
         def preprocess_function(examples):
-            """
-            Internal function to preprocess the dataset.
-            """
             model_inputs = {"input_ids": [], "attention_mask": [], "labels": []}
+            second_mapping = {
+                "Romanian": "ro",
+                "German": "de",
+                "French": "fr"
+            }
 
-            for i in range(len(examples['sentence_eng_Latn'])):
-                """
-                This loop runs once per sentence in the dataset.
-                The sentence is mapped to the given target language name and the target text is mapped to the corresponding language code.
-                The function returns the model inputs.
-                """
-                prefix = f"translate English to {target_lang_name}: "
-                input_text = prefix + examples['sentence_eng_Latn'][i]
-                target_text = examples[f'sentence_{target_language_code}'][i]
+            for i in range(len(examples['translation'])):
+                prefix = f"translate English to {target_language.capitalize()}: "
+                input_text = prefix + examples['translation'][i]['en']
+                target_text = examples['translation'][i][second_mapping[target_language]]
                 
                 tokenized_input = self.tokenizer(input_text, max_length=self.max_length, padding="max_length", truncation=True)
                 tokenized_target = self.tokenizer(target_text, max_length=self.max_length, padding="max_length", truncation=True)
@@ -361,7 +325,7 @@ def objective(trial):
         model_name=model_name,
         learning_rate=learning_rate,
         optimizer_name=optimizer_name,
-        **optimizer_params,
+        **optimizer_params
     )
     
     data_module = T5TranslationDataModule(
@@ -373,7 +337,6 @@ def objective(trial):
         val_range=val_range,
         test_range=test_range,
         seed_num=seed_num,
-        languages=language_to_choose
     )
     
     logger = TensorBoardLogger("tb_logs_full_training", 
@@ -395,7 +358,8 @@ def objective(trial):
         devices='auto',
     )
     hyperparameters = dict(learning_rate=learning_rate, 
-                           optimizer_name=optimizer_name,
+                           optimizer_name=optimizer_name, 
+                           seed_num=seed_num,
                            **optimizer_params)
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
