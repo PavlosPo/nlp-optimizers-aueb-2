@@ -1,0 +1,18 @@
+Seed: 1000
+Model: google-t5/t5-small
+Dataset: EdinburghNLP/xsum
+Optimizer: adam
+Training range: 30000
+Test range: 3000
+Validation range: 3000
+Best Validation Loss: 0.14081889390945435
+Best Hyperparameters:
+learning_rate: 0.00036459937460689385
+adam_beta1: 0.9181416865094143
+adam_beta2: 0.9016611656582176
+adam_epsilon: 2.2969178014240283e-09
+Search Spaces:
+  learning_rate: (1e-07, 0.001)
+  beta1: (0.8, 0.95)
+  beta2: (0.9, 0.99999)
+  eps: (1e-09, 1e-07)

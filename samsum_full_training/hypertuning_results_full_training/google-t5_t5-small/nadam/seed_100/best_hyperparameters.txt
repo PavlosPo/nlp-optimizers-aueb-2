@@ -1,0 +1,20 @@
+Seed: 100
+Model: google-t5/t5-small
+Dataset: Samsung/samsum
+Optimizer: nadam
+Training range: 14732
+Test range: 820
+Validation range: 820
+Best Validation Loss: 0.09017258882522583
+Best Hyperparameters:
+learning_rate: 0.00031255227677552867
+nadam_beta1: 0.8268914530414669
+nadam_beta2: 0.9145059932015929
+nadam_epsilon: 2.112239071453714e-09
+momentum_decay: 0.0054938962112709615
+Search Spaces:
+  learning_rate: (1e-07, 0.001)
+  beta1: (0.8, 0.95)
+  beta2: (0.9, 0.99999)
+  eps: (1e-09, 1e-07)
+  momentum: (0.0001, 0.01)

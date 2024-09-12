@@ -1,4 +1,0 @@
-
-CUDA_VISIBLE_DEVICES="X" python tune.py --gpu "X" --seed "Y"
-
-python xla_spawn --num_cores n your_training_script.py

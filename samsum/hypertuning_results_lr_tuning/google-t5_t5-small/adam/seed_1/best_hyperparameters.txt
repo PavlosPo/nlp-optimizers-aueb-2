@@ -1,0 +1,12 @@
+Seed: 1
+Model: google-t5/t5-small
+Dataset: Samsung/samsum
+Optimizer: adam
+Training range: 14732
+Test range: 820
+Validation range: 820
+Best Validation Loss: 0.09296905249357224
+Best Hyperparameters:
+learning_rate: 0.0009229874190544114
+Search Spaces:
+  learning_rate: (1e-07, 0.001)
