@@ -1,6 +1,8 @@
 # Ignore models in github
 ./my_awesome_**
 
+**/dataset_cache**/**
+
 # Ignore checkpoints
 **/checkpoint**
 

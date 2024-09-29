@@ -1,3 +1,0 @@
-optuna-integration
-python-dotenv
-psycopg2-binary

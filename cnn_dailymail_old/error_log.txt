@@ -1,2 +1,0 @@
-Error in trial 3:
-'val_loss'
