@@ -256,6 +256,7 @@ class T5TranslationDataModule(pl.LightningDataModule):
         AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage=None):
+        self.prepare_data()
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
         
