@@ -1,0 +1,37 @@
+\textbf{\emph{Full Mode}}
+
+In the Full Mode, where additional hyperparameters were tuned for each optimizer, we observe an overall improvement in performance across all metrics (see Tables \ref{xsum_test_results_1_full_training} and \ref{cnn_test_results_2_full_training}). Compared to the Basic Mode, all optimizers show enhanced performance. Among the adaptive optimizers, there is no significant difference in performance that favors one over the others. For the SGD and SGDM optimizers, SGDM demonstrates better test loss scores, although both SGD and SGDM report zero values for all other metrics, continuing to lag behind the adaptive optimizers.
+
+% First table with the first 3 optimizers
+\begin{table}[H]
+    \centering
+    \caption{This table presents the mean values of each optimizer's performance, averaged over four different seeds, for the XSum dataset in Full Mode. The table includes results for each optimizer's hyperparameters and learning rates. Due to space constraints, this is Part 1 of 2.}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} *{3}{>{\centering\arraybackslash}p{0.2\textwidth}}}
+    \toprule
+    \textbf{Metrics} & NAdam & SGD & SGDM \\
+    \midrule
+    Test Loss & ${0.1413}$ ($\pm$${0.001}$) & ${0.2268}$ ($\pm$${0.0013}$) & ${0.1947}$ ($\pm$${0.0077}$) \\
+    Test F1 (BERTScore) & ${0.5305}$ ($\pm$${0.0015}$) & ${0}$ & ${0}$  \\
+    Test Rouge 1 (F Measure) & ${0.3094}$ ($\pm$${0.001}$) & ${0}$ & ${0}$  \\
+    Test Rouge 2 (F Measure) & ${0.0939}$ ($\pm$${0.0004}$) & ${0}$ & ${0}$  \\
+    \bottomrule
+    \end{tabular}
+    \label{xsum_test_results_1_full_training}
+\end{table}
+    
+% Second table with the last 2 optimizers
+\begin{table}[H]
+    \centering
+    \caption{This table continues from Part 1, showing the mean values of each optimizer's performance, averaged over four seeds, for the XSum dataset in Full Mode. This table captures additional hyperparameters and optimizers.}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} *{2}{>{\centering\arraybackslash}p{0.2\textwidth}}}
+    \toprule
+    \textbf{Metrics} & AdamW & Adam \\
+    \midrule
+    Test Loss & ${0.1414}$ ($\pm$${0.0011}$) & ${0.1413}$ ($\pm$${0.001}$) \\
+    Test F1 (BERTScore) & ${0.5305}$ ($\pm$${0.0015}$) & ${0.5307}$ ($\pm$${0.0013}$) \\
+    Test Rouge 1 (F Measure) & ${0.3089}$ ($\pm$${0.006}$) & ${0.3082}$ ($\pm$${0.0016}$) \\
+    Test Rouge 2 (F Measure) & ${0.0945}$ ($\pm$${0.0008}$) & ${0.0934}$ ($\pm$${0.0015}$) \\
+    \bottomrule
+    \end{tabular}
+    \label{xsum_test_results_2_full_training}
+\end{table}

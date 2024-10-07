@@ -1,0 +1,38 @@
+\textbf{\emph{Full Mode}}
+
+In the Full Mode, with more hyperparameters tuned for each optimizer, (see Tables \ref{cnn_test_results_1_full_training} and \ref{cnn_test_results_2_full_training}) we observe an improvement in the performance of all optimizers. However, the key observation is that the improvement in the adaptive optimizers (NAdam, AdamW, and Adam) is only in the third or fourth decimal place, indicating that while there is some improvement, it is minimal. In contrast, the SGDM optimizer shows a significant performance boost, with its BERTScore F1 increasing from $0.0016$ in the Basic Mode to $0.2691$ in the Full Mode. Statistically significant improvements are also observed in the other metrics for SGDM, whereas SGD's performance remains largely unchanged.
+
+
+% First table with the first 3 optimizers
+\begin{table}[H]
+    \centering
+    \caption{This table presents the mean values of each optimizer's performance, averaged over four different seeds, for the CNN/Dailymail dataset in Full Mode. The table includes results for each optimizer's hyperparameters and learning rates. Due to space constraints, this is Part 1 of 2.}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} *{3}{>{\centering\arraybackslash}p{0.2\textwidth}}}
+    \toprule
+    \textbf{Metrics} & NAdam & SGD & SGDM \\
+    \midrule
+    Test Loss & ${0.2932}$ ($\pm$${0.0012}$) & ${0.3664}$ ($\pm$${0.0014}$) & ${0.3233}$ ($\pm$${0.0042}$) \\
+    Test F1 (BERTScore) & ${0.4931}$ ($\pm$${0.0007}$) & ${0.0015}$ ($\pm$${0.0008}$) & ${0.2691}$ ($\pm$${0.037}$) \\
+    Test Rouge 1 (F Measure) & ${0.2586}$ ($\pm$${0.0025}$) & ${0.0009}$ ($\pm$${0.0005}$) & ${0.1406}$ ($\pm$${0.018}$) \\
+    Test Rouge 2 (F Measure) & ${0.1225}$ ($\pm$${0.0002}$) & ${0.0005}$ ($\pm$${0.0003}$) & ${0.0679}$ ($\pm$${0.0067}$) \\
+    \bottomrule
+    \end{tabular}
+    \label{cnn_test_results_1_full_training}
+\end{table}
+    
+% Second table with the last 2 optimizers
+\begin{table}[H]
+    \centering
+    \caption{This table continues from Part 1, showing the mean values of each optimizer's performance, averaged over four seeds, for the CNN/Dailymail dataset in Full Mode. This table captures additional hyperparameters and optimizers.}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} *{2}{>{\centering\arraybackslash}p{0.2\textwidth}}}
+    \toprule
+    \textbf{Metrics} & AdamW & Adam \\
+    \midrule
+    Test Loss & ${0.2928}$ ($\pm$${0.0016}$) & ${0.2931}$ ($\pm$${0.0013}$) \\
+    Test F1 (BERTScore) & ${0.4919}$ ($\pm$${0.007}$) & ${0.4925}$ ($\pm$${0.001}$) \\
+    Test Rouge 1 (F Measure) & ${0.2587}$ ($\pm$${0.0027}$) & ${0.2587}$ ($\pm$${0.0026}$) \\
+    Test Rouge 2 (F Measure) & ${0.1225}$ ($\pm$${0.0019}$) & ${0.1226}$ ($\pm$${0.0017}$) \\
+    \bottomrule
+    \end{tabular}
+    \label{cnn_test_results_2_full_training}
+\end{table}
