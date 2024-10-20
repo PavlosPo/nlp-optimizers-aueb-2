@@ -1,0 +1,37 @@
+\textbf{\emph{Basic Mode}}
+
+In the SAMSum dataset, using the Basic Mode, we observe that the adaptive optimizers NAdam, AdamW, and Adam reported very similar results across all metrics (see Tables \ref{samsum_test_results_1} and \ref{samsum_test_results_2}). On the other hand, the SGD and SGDM optimizers reported zero values for most metrics, with the exception of Test Loss, where SGDM showed a slight advantage over SGD. However, both still lag significantly behind the performance of the adaptive optimizers.
+
+% First table with the first 3 optimizers
+\begin{table}[H]
+    \centering
+    \caption{This table presents the mean values of each optimizer's performance, averaged over four different seeds, for the SAMSum dataset in learning rate tuning mode only. The table contains the results for each optimizer's learning rate. Due to space constraints, this is Part 1 of 2.}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} *{3}{>{\centering\arraybackslash}p{0.2\textwidth}}}
+    \toprule
+    \textbf{Metrics} & NAdam & SGD & SGDM \\
+    \midrule
+    Test Loss & ${0.1413}$ ($\pm$${0.001}$) & ${0.2268}$ ($\pm$${0.0013}$) & ${0.1947}$ ($\pm$${0.0077}$) \\
+    Test F1 (BERTScore) & ${0.5305}$ ($\pm$${0.0015}$) & ${0}$  & ${0}$ \\
+    Test Rouge 1 (F Measure) & ${0.3094}$ ($\pm$${0.001}$) & ${0}$ & ${0}$ \\
+    Test Rouge 2 (F Measure) & ${0.0939}$ ($\pm$${0.0004}$) & ${0}$ & ${0}$ \\
+    \bottomrule
+    \end{tabular}
+    \label{samsum_test_results_1}
+\end{table}
+    
+% Second table with the last 2 optimizers
+\begin{table}[H]
+    \centering
+    \caption{This table continues from Part 1, showing the mean values of each optimizer's performance, averaged over four seeds, for the SAMSum dataset in learning rate tuning mode only. This table captures the remaining optimizers.}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} *{2}{>{\centering\arraybackslash}p{0.2\textwidth}}}
+    \toprule
+    \textbf{Metrics} & AdamW & Adam \\
+    \midrule
+    Test Loss & ${0.1414}$ ($\pm$${0.0011}$) & ${0.1413}$ ($\pm$${0.001}$) \\
+    Test F1 (BERTScore) & ${0.5302}$ ($\pm$${0.0011}$) & ${0.5307}$ ($\pm$${0.0013}$) \\
+    Test Rouge 1 (F Measure) & ${0.3089}$ ($\pm$${0.0006}$) & ${0.3082}$ ($\pm$${0.0016}$) \\
+    Test Rouge 2 (F Measure) & ${0.0945}$ ($\pm$${0.0008}$) & ${0.0934}$ ($\pm$${0.0015}$) \\
+    \bottomrule
+    \end{tabular}
+    \label{samsum_test_results_2}
+\end{table}

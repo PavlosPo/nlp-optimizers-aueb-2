@@ -1,0 +1,37 @@
+\textbf{\emph{Basic Mode}}
+
+As shown in Tables \ref{cnn_test_results_1} and \ref{cnn_test_results_2}, the adaptive optimizers NAdam, AdamW, and Adam exhibit similar performance across all metrics, with differences appearing only at the fourth decimal place, making these differences statistically insignificant. In contrast, the SGDM and SGD optimizers demonstrate similar performance to each other across all metrics but fall behind the adaptive optimizers in overall performance.
+
+% First table with the first 3 optimizers
+\begin{table}[H]
+    \centering
+    \caption{This table presents the mean values of each optimizer's performance, averaged over four different seeds, for the CNN/Dailymail dataset in learning rate tuning mode only. The table contains the results for each optimizer's learning rate. Due to space constraints, this is Part 1 of 2.}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} *{3}{>{\centering\arraybackslash}p{0.2\textwidth}}}
+    \toprule
+    \textbf{Metrics} & NAdam & SGD & SGDM \\
+    \midrule
+    Test Loss & ${0.2936}$ ($\pm$${0.0011}$) & ${0.3663}$ ($\pm$${0.0017}$) & ${0.3665}$ ($\pm$${0.0015}$) \\
+    Test F1 (BERTScore) & ${0.4926}$ ($\pm$${0.0006}$) & ${0.0017}$ ($\pm$${0.0004}$) & ${0.0016}$ ($\pm$${0.0007}$) \\
+    Test Rouge 1 (F Measure) & ${0.2581}$ ($\pm$${0.0024}$) & ${0.0011}$ ($\pm$${0.0002}$) & ${0.001}$ ($\pm$${0.0004}$) \\
+    Test Rouge 2 (F Measure) & ${0.1222}$ ($\pm$${0.0022}$) & ${0.0006}$ ($\pm$${0.0001}$) & ${0.0006}$ ($\pm$${0.0002}$) \\
+    \bottomrule
+    \end{tabular}
+    \label{cnn_test_results_1}
+\end{table}
+    
+% Second table with the last 2 optimizers
+\begin{table}[H]
+    \centering
+    \caption{This table continues from Part 1, showing the mean values of each optimizer's performance, averaged over four seeds, for the CNN/Dailymail dataset in learning rate tuning mode only. This table captures the remaining optimizers.}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} *{2}{>{\centering\arraybackslash}p{0.2\textwidth}}}
+    \toprule
+    \textbf{Metrics} & AdamW & Adam \\
+    \midrule
+    Test Loss & ${0.2932}$ ($\pm$${0.0013}$) & ${0.2934}$ ($\pm$${0.0013}$) \\
+    Test F1 (BERTScore) & ${0.4925}$ ($\pm$${0.0004}$) & ${0.493}$ ($\pm$${0.0005}$) \\
+    Test Rouge 1 (F Measure) & ${0.2572}$ ($\pm$${0.0026}$) & ${0.2575}$ ($\pm$${0.0021}$) \\
+    Test Rouge 2 (F Measure) & ${0.1211}$ ($\pm$${0.0011}$) & ${0.1216}$ ($\pm$${0.0014}$) \\
+    \bottomrule
+    \end{tabular}
+    \label{cnn_test_results_2}
+\end{table}

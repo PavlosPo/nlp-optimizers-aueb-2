@@ -1,0 +1,127 @@
+[
+  {
+    "caption": "This table presents the mean values of each optimizer's performance, averaged over four different seeds, for the XSum dataset in Full Mode. The table includes results for each optimizer's hyperparameters and learning rates. Due to space constraints, this is Part 1 of 2.",
+    "header": [
+      "\\textbf{Metrics}",
+      "NAdam",
+      "SGD",
+      "SGDM"
+    ],
+    "data": [
+      [
+        "Test Loss",
+        {
+          "value": 0.1413,
+          "variance": 0.001
+        },
+        {
+          "value": 0.2268,
+          "variance": 0.0013
+        },
+        {
+          "value": 0.1947,
+          "variance": 0.0077
+        }
+      ],
+      [
+        "Test F1 (BERTScore)",
+        {
+          "value": 0.5305,
+          "variance": 0.0015
+        },
+        {
+          "value": 0.0,
+          "variance": null
+        },
+        {
+          "value": 0.0,
+          "variance": null
+        }
+      ],
+      [
+        "Test Rouge 1 (F Measure)",
+        {
+          "value": 0.3094,
+          "variance": 0.001
+        },
+        {
+          "value": 0.0,
+          "variance": null
+        },
+        {
+          "value": 0.0,
+          "variance": null
+        }
+      ],
+      [
+        "Test Rouge 2 (F Measure)",
+        {
+          "value": 0.0939,
+          "variance": 0.0004
+        },
+        {
+          "value": 0.0,
+          "variance": null
+        },
+        {
+          "value": 0.0,
+          "variance": null
+        }
+      ]
+    ]
+  },
+  {
+    "caption": "This table continues from Part 1, showing the mean values of each optimizer's performance, averaged over four seeds, for the XSum dataset in Full Mode. This table captures additional hyperparameters and optimizers.",
+    "header": [
+      "\\textbf{Metrics}",
+      "AdamW",
+      "Adam"
+    ],
+    "data": [
+      [
+        "Test Loss",
+        {
+          "value": 0.1414,
+          "variance": 0.0011
+        },
+        {
+          "value": 0.1413,
+          "variance": 0.001
+        }
+      ],
+      [
+        "Test F1 (BERTScore)",
+        {
+          "value": 0.5305,
+          "variance": 0.0015
+        },
+        {
+          "value": 0.5307,
+          "variance": 0.0013
+        }
+      ],
+      [
+        "Test Rouge 1 (F Measure)",
+        {
+          "value": 0.3089,
+          "variance": 0.006
+        },
+        {
+          "value": 0.3082,
+          "variance": 0.0016
+        }
+      ],
+      [
+        "Test Rouge 2 (F Measure)",
+        {
+          "value": 0.0945,
+          "variance": 0.0008
+        },
+        {
+          "value": 0.0934,
+          "variance": 0.0015
+        }
+      ]
+    ]
+  }
+]

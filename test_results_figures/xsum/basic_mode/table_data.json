@@ -1,0 +1,109 @@
+[
+  {
+    "caption": "This table presents the mean values of each optimizer's performance, averaged over four different seeds, for the XSum dataset in learning rate tuning mode only. The table contains the results for each optimizer's learning rate. Due to space constraints, this is Part 1 of 2.",
+    "header": [
+      "\\textbf{Metrics}",
+      "NAdam",
+      "SGD",
+      "SGDM"
+    ],
+    "data": [
+      [
+        "Test Loss",
+        {
+          "value": 0.14228,
+          "variance": 0.0071
+        },
+        {
+          "value": 0.2268,
+          "variance": 0.0013
+        },
+        {
+          "value": 0.2329,
+          "variance": 0.0055
+        }
+      ],
+      [
+        "Test F1 (BERTScore)",
+        {
+          "value": 0.5309,
+          "variance": 0.0001
+        },
+        "0",
+        "0"
+      ],
+      [
+        "Test Rouge 1 (F Measure)",
+        {
+          "value": 0.3033,
+          "variance": 0.0023
+        },
+        "0",
+        "0"
+      ],
+      [
+        "Test Rouge 2 (F Measure)",
+        {
+          "value": 0.0905,
+          "variance": 0.0017
+        },
+        "0",
+        "0"
+      ]
+    ]
+  },
+  {
+    "caption": "This table continues from Part 1, showing the mean values of each optimizer's performance, averaged over four seeds, for the XSum dataset in learning rate tuning mode only. This table captures the remaining optimizers.",
+    "header": [
+      "\\textbf{Metrics}",
+      "AdamW",
+      "Adam"
+    ],
+    "data": [
+      [
+        "Test Loss",
+        {
+          "value": 0.1424,
+          "variance": 0.0009
+        },
+        {
+          "value": 0.1424,
+          "variance": 0.0007
+        }
+      ],
+      [
+        "Test F1 (BERTScore)",
+        {
+          "value": 0.5312,
+          "variance": 0.00021
+        },
+        {
+          "value": 0.5304,
+          "variance": 0.0014
+        }
+      ],
+      [
+        "Test Rouge 1 (F Measure)",
+        {
+          "value": 0.3007,
+          "variance": 0.0016
+        },
+        {
+          "value": 0.3006,
+          "variance": 0.0009
+        }
+      ],
+      [
+        "Test Rouge 2 (F Measure)",
+        {
+          "value": 0.0891,
+          "variance": 0.0007
+        },
+        {
+          "value": 0.0885,
+          "variance": 0.0006
+        }
+      ]
+    ]
+  }
+]
