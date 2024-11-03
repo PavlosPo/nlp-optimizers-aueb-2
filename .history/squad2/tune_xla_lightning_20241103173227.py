@@ -182,6 +182,8 @@ class T5TranslationDataModule(pl.LightningDataModule):
             dataset = load_dataset(self.dataset_name, lang_pair, trust_remote_code=True)
             dataset = dataset.shuffle(seed=self.seed_num)
             self.datasets[lang_pair] = dataset
+        
+        for lang_pair, target_lang in self.language_codes.items():
             dataset = self.datasets[lang_pair][split]
             if data_range is not None:
                 # Select the specified range from the dataset
