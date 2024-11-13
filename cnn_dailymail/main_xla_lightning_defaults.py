@@ -49,9 +49,9 @@ class T5SummarizationModule(pl.LightningModule):
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.learning_rate = learning_rate
+        # self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
-        self.optimizer_params = optimizer_params
+        # self.optimizer_params = optimizer_params
         self.val_loss = MeanMetric() # This line to create a metric for tracking validation loss
         self.generation_max_tokens = generation_max_tokens
         self.valid_step_outputs = []
