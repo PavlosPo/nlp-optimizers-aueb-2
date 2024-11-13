@@ -428,7 +428,7 @@ if __name__ == "__main__":
     parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
     # parser.add_argument("--learning_rate", type=float, required=True, help="Learning rate for training")
-    parser.add_argument("--training_mode", type=str, default="None", help="Training mode")
+    parser.add_argument("--training_mode", type=str, default="Default Hyperparams", help="Training mode")
     
     # Add arguments for all possible optimizer parameters
     # parser.add_argument("--betas", nargs=2, type=float, help="Beta parameters for Adam-like optimizers")
