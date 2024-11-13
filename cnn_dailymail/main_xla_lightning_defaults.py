@@ -44,7 +44,7 @@ val_range = 3500
 epochs = 5
 
 class T5SummarizationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw", generation_max_tokens=20, bert_score_model_to_use="microsoft/deberta-large-mnli"):        
+    def __init__(self, model_name, optimizer_name="adamw", generation_max_tokens=20, bert_score_model_to_use="microsoft/deberta-large-mnli"):        
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
