@@ -28,7 +28,7 @@ run_and_clean() {
 }
 
 # Set common arguments
-optim="sgd"
+optim="sgdm"
 batch_size=16
 
 # Array of seeds
