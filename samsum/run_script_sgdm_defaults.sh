@@ -4,7 +4,7 @@
 run_and_clean() {
     local seed=$1
     echo "Running configuration with seed $seed..."
-    PJRT_DEVICE=TPU python main_cla_lightning_defaults.py --seed $seed --optim $optim --batch_size $batch_size
+    PJRT_DEVICE=TPU python main_xla_lightning_defaults.py --seed $seed --optim $optim --batch_size $batch_size
     
     echo "Waiting for 10 seconds..."
     sleep 10
