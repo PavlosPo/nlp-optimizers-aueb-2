@@ -1,0 +1,12 @@
+Seed: 10
+Model: google-t5/t5-small
+Dataset: wmt16
+Optimizer: sgd
+Training range: (0, 15000)
+Test range: (0, 1500)
+Validation range: (0, 1500)
+Best Validation Loss: 0.14366333186626434
+Best Hyperparameters:
+learning_rate: 0.0009641155158508688
+Search Spaces:
+ learning_rate: (1e-07, 0.001)
