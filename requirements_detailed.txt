@@ -33,7 +33,7 @@ pytorch-lightning==2.4.0
 nvidia-nvjitlink-cu12==12.6.20
 pyppmd==1.1.0
 pandas==2.2.2
-requests==2.25.1
+requests>=2.32.2
 colorlog==6.8.2
 lightning==2.4.0
 aiohappyeyeballs==2.4.0
