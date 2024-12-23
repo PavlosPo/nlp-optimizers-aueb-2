@@ -1,7 +1,4 @@
-torch==2.4
-torch_xla==2.4
-torchvision==0.19
-lightning==2.4
+lightning
 transformers
 datasets
 optuna
@@ -12,3 +9,4 @@ py7zr
 nltk
 wandb
 icecream
+sentencepiece
