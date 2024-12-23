@@ -1,0 +1,19 @@
+\begin{table*}[htbp]
+    {\small
+    \centering
+    \begin{tabular}{|l|c|c|c|c|c|}
+        \hline
+        & CNN/DailyMail & XSum & SAMSum & IWSLT & Flores \\
+         Optimizer & Validation Loss & F1 & ROUGE 1 & ROUGE 2  & ROUGE 2 \\
+        \hline
+    Adam & 0.293 $\pm$ 0.001 & 0.530 $\pm$ 0.001 & 0.438 $\pm$ 0.009 & 0.350 $\pm$ 0.004 & 0.321 $\pm$ 0.004 \\
+Nadam & 0.294 $\pm$ 0.001 & 0.531 $\pm$ 0.002 & 0.441 $\pm$ 0.000 & 0.351 $\pm$ 0.003 & 0.328 $\pm$ 0.005 \\
+Adamw & 0.293 $\pm$ 0.001 & 0.531 $\pm$ 0.002 & 0.442 $\pm$ 0.006 & 0.350 $\pm$ 0.004 & 0.321 $\pm$ 0.004 \\
+Sgdm & 0.367 $\pm$ 0.002 & 0.000 $\pm$ 0.000 & 0.000 $\pm$ 0.000 & 0.000 $\pm$ 0.000 & 0.226 $\pm$ 0.147 \\
+Sgd & 0.366 $\pm$ 0.002 & 0.000 $\pm$ 0.000 & 0.000 $\pm$ 0.000 & 0.000 $\pm$ 0.000 & 0.028 $\pm$ 0.017 \\
+\hline
+    \end{tabular}
+    }
+    \caption{Evaluation scores on test data for the {mode.capitalize()} mode.}
+    \label{{tab:{mode}_mode}}
+\end{table*}

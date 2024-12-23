@@ -1,0 +1,36 @@
+
+        \begin{table}[H]
+            \centering
+            \caption{This table presents the mean values of each optimizer's performance, averaged over four different seeds, for the Flores dataset in Full Mode mode.}
+            \begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} *{3}{>{\centering\arraybackslash}p{0.2\textwidth}}}
+            \toprule
+            \textbf{Metrics} & Nadam & Sgd & Sgdm \\
+            \midrule
+            Test loss & $0.0756$ ($\pm$0.0019) & $0.1497$ ($\pm$0.0022) & $0.1416$ ($\pm$0.0164) \\ 
+    Test f1 & $0.5046$ ($\pm$0.0031) & $0.0462$ ($\pm$0.0235) & $0.0392$ ($\pm$0.0330) \\ 
+    Test rouge1 fmeasure & $0.4898$ ($\pm$0.0070) & $0.0424$ ($\pm$0.0228) & $0.0364$ ($\pm$0.0300) \\ 
+    Test rouge2 fmeasure & $0.3281$ ($\pm$0.0046) & $0.0261$ ($\pm$0.0155) & $0.0230$ ($\pm$0.0192) \\ 
+    \bottomrule
+    \end{tabular}
+    \label{label}
+\end{table}
+
+
+
+        \begin{table}[H]
+            \centering
+            \caption{This table presents the mean values of each optimizer's performance, averaged over four different seeds, for the Flores dataset in Full Mode mode.}
+            \begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} *{2}{>{\centering\arraybackslash}p{0.2\textwidth}}}
+            \toprule
+            \textbf{Metrics} & Adamw & Adam \\
+            \midrule
+            Test loss & $0.0755$ ($\pm$0.0017) & $0.0759$ ($\pm$0.0017) \\ 
+    Test f1 & $0.5047$ ($\pm$0.0038) & $0.5058$ ($\pm$0.0015) \\ 
+    Test rouge1 fmeasure & $0.4907$ ($\pm$0.0096) & $0.4897$ ($\pm$0.0080) \\ 
+    Test rouge2 fmeasure & $0.3290$ ($\pm$0.0059) & $0.3286$ ($\pm$0.0042) \\ 
+    \bottomrule
+    \end{tabular}
+    \label{label}
+\end{table}
+
+
