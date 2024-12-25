@@ -29,7 +29,7 @@ run_and_clean() {
 
 # Set common arguments
 optim="adamw"
-batch_size=16
+batch_size=8
 
 # Array of seeds
 seeds=(1 10 100 1000)
