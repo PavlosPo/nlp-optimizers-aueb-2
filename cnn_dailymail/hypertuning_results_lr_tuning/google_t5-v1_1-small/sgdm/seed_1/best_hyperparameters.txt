@@ -1,0 +1,12 @@
+Seed: 1
+Model: google/t5-v1_1-small
+Dataset: cnn_dailymail
+Optimizer: sgdm
+Training range: 35000
+Test range: 3500
+Validation range: 3500
+Best Validation Loss: 0.5953989624977112
+Best Hyperparameters:
+learning_rate: 0.0001305697975889018
+Search Spaces:
+  learning_rate: (1e-07, 0.001)
