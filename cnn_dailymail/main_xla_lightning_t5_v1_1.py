@@ -175,6 +175,32 @@ class T5SummarizationModule(pl.LightningModule):
         optimizer = self._get_optimizer()
         return optimizer
     
+    # def _compute_metrics(self, predictions, labels):
+    #     """
+    #     Helper function to Compute the metrics for the predictions and labels.
+        
+    #     Args:
+    #         predictions: The predictions from the model.
+    #         labels: The labels for the predictions.
+    #     Returns:
+    #         The metrics for the predictions and labels as a dictionary.
+    #     """
+    #     if isinstance(predictions, list):
+    #        predictions = torch.cat(predictions, dim=0)
+    #     if isinstance(labels, list):
+    #         labels = torch.cat(labels, dim=0)
+        
+    #     predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
+    #     labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
+
+    #     decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)        
+    #     processed_labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
+    #     decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
+    #     result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
+    #     result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+    #     result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
+    #     results = {**result_rouge, **result_brt_average_values}
+    #     return results
     def _compute_metrics(self, predictions, labels):
         """
         Helper function to Compute the metrics for the predictions and labels.
@@ -199,7 +225,15 @@ class T5SummarizationModule(pl.LightningModule):
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-        results = {**result_rouge, **result_brt_average_values}
+        results_blue = {
+            "bleu_n1": self.bleu_n1(decoded_preds, decoded_labels),
+            "bleu_n2": self.bleu_n2(decoded_preds, decoded_labels),
+            "bleu_n3": self.bleu_n3(decoded_preds, decoded_labels),
+            "bleu_n4": self.bleu_n4(decoded_preds, decoded_labels)          
+        }
+        print(f"Rouge: {result_rouge}, BERT: {result_brt_average_values}, BLEU: {results_blue}")
+        results = {**result_rouge, **result_brt_average_values, **results_blue}
+        
         return results
 
     def _get_optimizer(self):
