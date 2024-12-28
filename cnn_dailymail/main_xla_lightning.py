@@ -11,6 +11,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
+from torchmetrics.text import BLEUScore
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
 from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
@@ -139,6 +140,11 @@ class T5SummarizationModule(pl.LightningModule):
             
             self.bert_score = BERTScore(model_name_or_path=self.bert_score_model_to_use,
                                         sync_on_compute=True, device=self.device)
+        if not hasattr(self, "bleu_n1"):
+            self.bleu_n1 = BLEUScore(n_gram=1, sync_on_compute=True)
+            self.bleu_n2 = BLEUScore(n_gram=2, sync_on_compute=True)
+            self.bleu_n3 = BLEUScore(n_gram=3, sync_on_compute=True)
+            self.bleu_n4 = BLEUScore(n_gram=4, sync_on_compute=True)
     
     def _eval_epoch_end(self, outputs, prefix):
         """
@@ -168,6 +174,33 @@ class T5SummarizationModule(pl.LightningModule):
         optimizer = self._get_optimizer()
         return optimizer
     
+    # def _compute_metrics(self, predictions, labels):
+    #     """
+    #     Helper function to Compute the metrics for the predictions and labels.
+        
+    #     Args:
+    #         predictions: The predictions from the model.
+    #         labels: The labels for the predictions.
+    #     Returns:
+    #         The metrics for the predictions and labels as a dictionary.
+    #     """
+    #     if isinstance(predictions, list):
+    #        predictions = torch.cat(predictions, dim=0)
+    #     if isinstance(labels, list):
+    #         labels = torch.cat(labels, dim=0)
+        
+    #     predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
+    #     labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
+
+    #     decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)        
+    #     processed_labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
+    #     decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
+    #     result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
+    #     result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
+    #     result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
+    #     results = {**result_rouge, **result_brt_average_values}
+    #     return results
+
     def _compute_metrics(self, predictions, labels):
         """
         Helper function to Compute the metrics for the predictions and labels.
@@ -192,9 +225,17 @@ class T5SummarizationModule(pl.LightningModule):
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-        results = {**result_rouge, **result_brt_average_values}
+        results_blue = {
+            "bleu_n1": self.bleu_n1(decoded_preds, decoded_labels),
+            "bleu_n2": self.bleu_n2(decoded_preds, decoded_labels),
+            "bleu_n3": self.bleu_n3(decoded_preds, decoded_labels),
+            "bleu_n4": self.bleu_n4(decoded_preds, decoded_labels)          
+        }
+        print(f"Rouge: {result_rouge}, BERT: {result_brt_average_values}, BLEU: {results_blue}")
+        results = {**result_rouge, **result_brt_average_values, **results_blue}
+        
         return results
-
+    
     def _get_optimizer(self):
         if self.optimizer_name == "adamw":
             return torch.optim.AdamW(self.parameters(), lr=self.learning_rate, **self.optimizer_params)

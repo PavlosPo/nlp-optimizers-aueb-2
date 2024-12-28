@@ -140,10 +140,11 @@ class T5SummarizationModule(pl.LightningModule):
             
             self.bert_score = BERTScore(model_name_or_path=self.bert_score_model_to_use,
                                         sync_on_compute=True, device=self.device)
-        self.bleu_n1 = BLEUScore(n_gram=1, sync_on_compute=True)
-        self.bleu_n2 = BLEUScore(n_gram=2, sync_on_compute=True)
-        self.bleu_n3 = BLEUScore(n_gram=3, sync_on_compute=True)
-        self.bleu_n4 = BLEUScore(n_gram=4, sync_on_compute=True)
+        if not hasattr(self, "bleu_n1"):
+            self.bleu_n1 = BLEUScore(n_gram=1, sync_on_compute=True)
+            self.bleu_n2 = BLEUScore(n_gram=2, sync_on_compute=True)
+            self.bleu_n3 = BLEUScore(n_gram=3, sync_on_compute=True)
+            self.bleu_n4 = BLEUScore(n_gram=4, sync_on_compute=True)
     
     def _eval_epoch_end(self, outputs, prefix):
         """
