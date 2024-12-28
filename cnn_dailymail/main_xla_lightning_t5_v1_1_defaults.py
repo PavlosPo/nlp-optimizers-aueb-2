@@ -11,7 +11,8 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
-from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
+from torchmetrics.text import BLEUScore
+from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer, T5Tokenizer
 from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
 import argparse
@@ -48,7 +49,7 @@ class T5SummarizationModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
         # self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
         # self.optimizer_params = optimizer_params
@@ -139,6 +140,10 @@ class T5SummarizationModule(pl.LightningModule):
             
             self.bert_score = BERTScore(model_name_or_path=self.bert_score_model_to_use,
                                         sync_on_compute=True, device=self.device)
+        self.bleu_n1 = BLEUScore(n_gram=1, sync_on_compute=True)
+        self.bleu_n2 = BLEUScore(n_gram=2, sync_on_compute=True)
+        self.bleu_n3 = BLEUScore(n_gram=3, sync_on_compute=True)
+        self.bleu_n4 = BLEUScore(n_gram=4, sync_on_compute=True)
     
     def _eval_epoch_end(self, outputs, prefix):
         """
@@ -192,7 +197,15 @@ class T5SummarizationModule(pl.LightningModule):
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-        results = {**result_rouge, **result_brt_average_values}
+        results_blue = {
+            "bleu_n1": self.bleu_n1(decoded_preds, decoded_labels),
+            "bleu_n2": self.bleu_n2(decoded_preds, decoded_labels),
+            "bleu_n3": self.bleu_n3(decoded_preds, decoded_labels),
+            "bleu_n4": self.bleu_n4(decoded_preds, decoded_labels)          
+        }
+        print(f"Rouge: {result_rouge}, BERT: {result_brt_average_values}, BLEU: {results_blue}")
+        results = {**result_rouge, **result_brt_average_values, **results_blue}
+        
         return results
 
     def _get_optimizer(self):

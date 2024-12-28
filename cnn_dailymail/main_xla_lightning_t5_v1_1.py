@@ -11,7 +11,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
-from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer, T5Tokenizer
 from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
 import argparse
@@ -48,7 +48,7 @@ class T5SummarizationModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
         self.optimizer_params = optimizer_params
