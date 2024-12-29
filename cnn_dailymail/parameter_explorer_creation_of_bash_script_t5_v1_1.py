@@ -114,7 +114,7 @@ def main():
     hyperparams_per_optimizer, training_mode = read_best_hyperparameters()
     bash_script = generate_bash_script(hyperparams_per_optimizer, training_mode)
     
-    with open('run_experiments.sh', 'w') as f:
+    with open('run_experiments_t5_v1_1.sh', 'w') as f:
         f.write(bash_script)
     
     print("Bash script 'run_experiments.sh' has been generated.")

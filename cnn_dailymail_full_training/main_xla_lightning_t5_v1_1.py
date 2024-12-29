@@ -25,16 +25,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = 'false'  # This is required in order not 
 wandb.require("core")   # This is required for W&B to work in future versions.
 
 # Ask the user to choose between small, base and large model
-model_names = {
-    "1": "google-t5/t5-small",
-    "2": "google-t5/t5-base",
-    "3": "google-t5/t5-large"
-}
-max_length = {
-    "1": 512,
-    "2": 768,
-    "3": 1024
-}
 model_name = "google/t5-v1_1-small"
 bert_score_model_to_use = "microsoft/deberta-large-mnli"
 max_length = 512
