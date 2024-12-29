@@ -117,8 +117,8 @@ def main():
     with open('run_experiments_t5_v1_1.sh', 'w') as f:
         f.write(bash_script)
     
-    print("Bash script 'run_experiments.sh' has been generated.")
-    print("Make it executable with: chmod +x run_experiments.sh")
+    print("Bash script 'run_experiments_t5_v1_1.sh' has been generated.")
+    print("Make it executable with: chmod +x run_experiments_t5_v1_1.sh")
     print("Then run it with: ./run_experiments_t5_v1_1.sh")
 
 if __name__ == "__main__":
