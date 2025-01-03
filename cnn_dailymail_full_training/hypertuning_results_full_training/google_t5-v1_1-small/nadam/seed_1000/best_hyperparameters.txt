@@ -1,0 +1,20 @@
+Seed: 1000
+Model: google/t5-v1_1-small
+Dataset: cnn_dailymail
+Optimizer: nadam
+Training range: 35000
+Test range: 3500
+Validation range: 3500
+Best Validation Loss: 0.3244781196117401
+Best Hyperparameters:
+learning_rate: 0.00048178222337260713
+nadam_beta1: 0.8895068934619322
+nadam_beta2: 0.959815003017053
+nadam_epsilon: 1.9609443219613046e-09
+momentum_decay: 0.0050438469807067045
+Search Spaces:
+  learning_rate: (1e-07, 0.001)
+  beta1: (0.8, 0.95)
+  beta2: (0.9, 0.99999)
+  eps: (1e-09, 1e-07)
+  momentum: (0.0001, 0.01)
