@@ -30,17 +30,6 @@ args = parser.parse_args()
 # Parameters
 optimizer_name = args.optim
 # Ask the user to choose between small, base and large model
-model_names = {
-    "1": "google-t5/t5-small",
-    "2": "google-t5/t5-base",
-    "3": "google-t5/t5-large",
-    "4": "google/t5-v1_1-base"
-}
-max_length = {
-    "1": 512,
-    "2": 768,
-    "3": 1024
-}
 model_name = "google/t5-v1_1-small"
 max_length = 512
 dataset_name = "cnn_dailymail"
