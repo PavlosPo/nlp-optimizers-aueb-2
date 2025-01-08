@@ -31,12 +31,13 @@ args = parser.parse_args()
 optimizer_name = args.optim
 # Ask the user to choose between small, base and large model
 model_name = "google/t5-v1_1-small"
+optimizer_name = args.optim
 max_length = 512
-dataset_name = "cnn_dailymail"
+dataset_name = "Samsung/samsum"
 seed_num = args.seed
-train_range = 35000
-test_range = 3500
-val_range = 3500
+train_range = 14732
+test_range = 820 # max
+val_range = 820 # max
 epochs = 5
 n_trials = 30
 learning_rate_range = (1e-7, 1e-3)
@@ -142,14 +143,11 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         self.seed_num = seed_num
         self.tokenizer = None
         self.data_collator = None
-        self.train_dataset = None
-        self.val_dataset = None
-        self.test_dataset = None
         self.cache_dir = f"./dataset_cache_{self.seed_num}"
 
     def prepare_data(self):
         # Downloading data, called only once on 1 GPU/TPU in distributed settings
-        load_dataset(self.dataset_name, '3.0.0',  trust_remote_code=True).shuffle(seed=self.seed_num)
+        load_dataset(self.dataset_name,  trust_remote_code=True).shuffle(seed=self.seed_num)
         AutoTokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage):
@@ -164,13 +162,6 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         if stage == 'test' or stage is None:
             self.test_dataset = self._get_or_process_dataset('test')
             
-        # print(f"Setup complete. Datasets sizes: Train: {len(self.train_dataset)}, Val: {len(self.val_dataset)}, Test: {len(self.test_dataset)}")
-        # # Set global length for train, val, and test datasets, to save in the output file after hyperparameter tuning
-        # global train_range, val_range, test_range
-        # train_range = len(self.train_dataset)
-        # val_range = len(self.val_dataset)
-        # test_range = len(self.test_dataset)
-            
     def _get_or_process_dataset(self, split):
         cache_file = os.path.join(self.cache_dir, f"{split}_{self.seed_num}.pkl")
         
@@ -180,7 +171,7 @@ class T5SummarizationDataModule(pl.LightningDataModule):
                 return pickle.load(f)
         
         print(f"Processing {split} dataset...")
-        dataset = load_dataset(self.dataset_name, '3.0.0',  trust_remote_code=True).shuffle(seed=self.seed_num)
+        dataset = load_dataset(self.dataset_name,  trust_remote_code=True).shuffle(seed=self.seed_num)
         
         if split == 'train':
             data = dataset['train'].select(range(min(self.train_range, len(dataset['train']))))
@@ -211,10 +202,10 @@ class T5SummarizationDataModule(pl.LightningDataModule):
         
     def _preprocess_function(self, examples):
         prefix = "summarize: "
-        inputs = [prefix + doc for doc in examples["article"]]
+        inputs = [prefix + doc for doc in examples["dialogue"]]
         model_inputs = self.tokenizer(inputs, padding="max_length", 
                                       truncation=True, max_length=self.max_length)
-        labels = self.tokenizer(text_target=examples["highlights"], 
+        labels = self.tokenizer(text_target=examples["summary"], 
                                 padding="max_length", truncation=True, max_length=self.max_length)
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
