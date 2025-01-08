@@ -167,7 +167,7 @@ def process_folder(input_folder, output_folder, optimizers, styles):
 
 if __name__ == "__main__":
     # Input and output folder paths
-    folder_of_model = "t5_v1_1-small"  # or "t5-small"  # Replace with your model folder
+    folder_of_model = "t5-small"  # or "t5-small"  # Replace with your model folder
     input_folders = ["cnn", "flores", "xsum", "samsum", "iwslt"]  # Replace with your datasets folder
     # inject folder of model in input folders
     input_folders = [os.path.join(folder_of_model, folder) for folder in input_folders]

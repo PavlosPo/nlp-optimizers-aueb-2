@@ -2,8 +2,9 @@ import os
 import pandas as pd
 
 # Directory containing CSV files
-csv_dir = "tests/"
-output_file = "summary_table_tests.csv"
+folder_of_model = "t5-small/" # "t5_v1_1-small" or "t5-small"
+csv_dir = folder_of_model + "/tests"
+output_file = folder_of_model + "/summary_table_tests.csv"
 
 # Initialize list for summary
 summary = []

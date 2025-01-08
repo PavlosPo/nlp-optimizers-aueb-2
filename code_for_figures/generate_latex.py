@@ -1,7 +1,10 @@
 import pandas as pd
+import os 
 
 # Load the CSV dataset
-data = pd.read_csv("summary_table_tests.csv")
+foler_of_model = "t5-small"
+folder = os.path.join(foler_of_model, 'summary_table_tests.csv')
+data = pd.read_csv(folder)
 
 # Define the template for the LaTeX table
 def generate_latex_table(mode, grouped_data):
@@ -11,17 +14,17 @@ def generate_latex_table(mode, grouped_data):
     \\begin{tabular}{|l|c|c|c|c|c|}
         \\hline
         & CNN/DailyMail & XSum & SAMSum & IWSLT & Flores \\\\
-         Optimizer & Validation Loss & F1 & ROUGE 1 & ROUGE 2  & ROUGE 2 \\\\
+         Optimizer & BERTScore F1 & BERTScore F1 & BERTScore F1 & BERTScore F1  & BERTScore F1 \\\\
         \\hline
     """
     
     optimizers = ['adam', 'nadam', 'adamw', 'sgdm', 'sgd']
     relevant_combinations = {
-        'cnn': 'test_loss',
+        'cnn': 'test_f1',
         'xsum': 'test_f1',
-        'samsum': 'test_rouge1_fmeasure',
-        'iwslt': 'test_rouge2_fmeasure',
-        'flores': 'test_rouge2_fmeasure'
+        'samsum': 'test_f1',
+        'iwslt': 'test_f1',
+        'flores': 'test_f1'
     }
 
     for optimizer in optimizers:

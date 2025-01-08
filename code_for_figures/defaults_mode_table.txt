@@ -1,0 +1,19 @@
+\begin{table*}[htbp]
+    {\small
+    \centering
+    \begin{tabular}{|l|c|c|c|c|c|}
+        \hline
+        & CNN/DailyMail & XSum & SAMSum & IWSLT & Flores \\
+         Optimizer & BERTScore F1 & BERTScore F1 & BERTScore F1 & BERTScore F1  & BERTScore F1 \\
+        \hline
+    Adam & 0.493 $\pm$ 0.001 & 0.531 $\pm$ 0.002 & 0.553 $\pm$ 0.002 & 0.507 $\pm$ 0.001 & 0.506 $\pm$ 0.002 \\
+Nadam & 0.492 $\pm$ 0.001 & 0.530 $\pm$ 0.001 & 0.556 $\pm$ 0.002 & 0.508 $\pm$ 0.001 & 0.504 $\pm$ 0.002 \\
+Adamw & 0.492 $\pm$ 0.000 & 0.530 $\pm$ 0.002 & 0.555 $\pm$ 0.001 & 0.507 $\pm$ 0.001 & 0.504 $\pm$ 0.004 \\
+Sgdm & 0.313 $\pm$ 0.017 & 0.000 $\pm$ 0.000 & 0.000 $\pm$ 0.000 & 0.037 $\pm$ 0.058 & 0.000 $\pm$ 0.000 \\
+Sgd & 0.002 $\pm$ 0.001 & 0.000 $\pm$ 0.000 & 0.000 $\pm$ 0.000 & 0.000 $\pm$ 0.000 & 0.021 $\pm$ 0.002 \\
+\hline
+    \end{tabular}
+    }
+    \caption{Evaluation scores on test data for the {mode.capitalize()} mode.}
+    \label{{tab:{mode}_mode}}
+\end{table*}
