@@ -11,7 +11,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
-from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer, T5Tokenizer
+from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, T5Tokenizer
 from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
 import argparse
@@ -248,10 +248,10 @@ class T5TranslationDataModule(pl.LightningDataModule):
         self.datasets['French'] = load_dataset(self.dataset_name, self.language_codes['French'], trust_remote_code=True).shuffle(seed=self.seed_num)
 
         # Download tokenizer
-        AutoTokenizer.from_pretrained(self.model_name)
+        T5Tokenizer.from_pretrained(self.model_name)
 
     def setup(self, stage=None):
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = T5Tokenizer.from_pretrained(self.model_name)
         self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model_name)
         
         if stage == 'fit' or stage is None:
