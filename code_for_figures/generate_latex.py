@@ -14,17 +14,17 @@ def generate_latex_table(mode, grouped_data):
     \\begin{tabular}{|l|c|c|c|c|c|}
         \\hline
         & CNN/DailyMail & XSum & SAMSum & IWSLT & Flores \\\\
-         Optimizer & BERTScore F1 & BERTScore F1 & BERTScore F1 & BERTScore F1  & BERTScore F1 \\\\
+         Optimizer & ROUGE 2 & ROUGE 2 & ROUGE 2 & ROUGE 2  & ROUGE 2 \\\\
         \\hline
     """
     
     optimizers = ['adam', 'nadam', 'adamw', 'sgdm', 'sgd']
     relevant_combinations = {
-        'cnn': 'test_f1',
-        'xsum': 'test_f1',
-        'samsum': 'test_f1',
-        'iwslt': 'test_f1',
-        'flores': 'test_f1'
+        'cnn': 'test_rouge2_fmeasure',
+        'xsum': 'test_rouge2_fmeasure',
+        'samsum': 'test_rouge2_fmeasure',
+        'iwslt': 'test_rouge2_fmeasure',
+        'flores': 'test_rouge2_fmeasure'
     }
 
     for optimizer in optimizers:

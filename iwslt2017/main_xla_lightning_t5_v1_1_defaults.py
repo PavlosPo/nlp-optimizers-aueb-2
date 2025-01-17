@@ -11,8 +11,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
-from torchmetrics.text import BLEUScore
-from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, T5Tokenizer
 from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
 import argparse
@@ -25,17 +24,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = 'false'  # This is required in order not 
 wandb.require("core")   # This is required for W&B to work in future versions.
 
 # Ask the user to choose between small, base and large model
-model_names = {
-    "1": "google-t5/t5-small",
-    "2": "google-t5/t5-base",
-    "3": "google-t5/t5-large"
-}
-max_length = {
-    "1": 512,
-    "2": 768,
-    "3": 1024
-}
-model_name = "google-t5/t5-small"
+model_name = "google/t5-v1_1-small"
 bert_score_model_to_use = "microsoft/deberta-large-mnli"
 max_length = 512
 dataset_name = "IWSLT/iwslt2017"
@@ -46,14 +35,14 @@ epochs = 5
 
 
 class T5TranslationModule(pl.LightningModule):
-    def __init__(self, model_name, learning_rate, optimizer_name="adamw", generation_max_tokens=20, bert_score_model_to_use="microsoft/deberta-large-mnli", **optimizer_params):        
+    def __init__(self, model_name, optimizer_name="adamw", generation_max_tokens=20, bert_score_model_to_use="microsoft/deberta-large-mnli"):        
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.learning_rate = learning_rate
+        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
+        # self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
-        self.optimizer_params = optimizer_params
+        # self.optimizer_params = optimizer_params
         self.val_loss = MeanMetric() # This line to create a metric for tracking validation loss
         self.generation_max_tokens = generation_max_tokens
         self.valid_step_outputs = []
@@ -170,32 +159,6 @@ class T5TranslationModule(pl.LightningModule):
         optimizer = self._get_optimizer()
         return optimizer
     
-    # def _compute_metrics(self, predictions, labels):
-    #     """
-    #     Helper function to Compute the metrics for the predictions and labels.
-        
-    #     Args:
-    #         predictions: The predictions from the model.
-    #         labels: The labels for the predictions.
-    #     Returns:
-    #         The metrics for the predictions and labels as a dictionary.
-    #     """
-    #     if isinstance(predictions, list):
-    #        predictions = torch.cat(predictions, dim=0)
-    #     if isinstance(labels, list):
-    #         labels = torch.cat(labels, dim=0)
-        
-    #     predictions = predictions.cpu().numpy() if torch.is_tensor(predictions) else predictions
-    #     labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
-
-    #     decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)        
-    #     processed_labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
-    #     decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
-    #     result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
-    #     result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
-    #     result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-    #     results = {**result_rouge, **result_brt_average_values}
-    #     return results
     def _compute_metrics(self, predictions, labels):
         """
         Helper function to Compute the metrics for the predictions and labels.
@@ -207,7 +170,7 @@ class T5TranslationModule(pl.LightningModule):
             The metrics for the predictions and labels as a dictionary.
         """
         if isinstance(predictions, list):
-            predictions = torch.cat(predictions, dim=0)
+           predictions = torch.cat(predictions, dim=0)
         if isinstance(labels, list):
             labels = torch.cat(labels, dim=0)
         
@@ -217,43 +180,33 @@ class T5TranslationModule(pl.LightningModule):
         decoded_preds = self.tokenizer.batch_decode(predictions, skip_special_tokens=True)        
         processed_labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
         decoded_labels = self.tokenizer.batch_decode(processed_labels, skip_special_tokens=True)
-        
-        # Calculate ROUGE scores
         result_rouge = self.rouge_score(preds=decoded_preds, target=decoded_labels)
-        
-        # Calculate BERT scores
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
-        
-        # Calculate BLEU score - need to tokenize the text for BLEU
-        tokenized_preds = [pred.split() for pred in decoded_preds]
-        tokenized_labels = [[label.split()] for label in decoded_labels]  # BLEU expects a list of list of references
-        bleu_score = self.bleu_score(tokenized_preds, tokenized_labels)
-        
-        results = {**result_rouge, **result_brt_average_values, 'bleu_score': bleu_score}
+        results = {**result_rouge, **result_brt_average_values}
         return results
 
     def _get_optimizer(self):
         if self.optimizer_name == "adamw":
-            return torch.optim.AdamW(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+            return torch.optim.AdamW(self.parameters())
         elif self.optimizer_name == "sgd":
-            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+            return torch.optim.SGD(self.parameters())
         elif self.optimizer_name == "sgdm": # Momentum will be added later in the '**self.optimizer_params' kwargs
-            return torch.optim.SGD(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+            return torch.optim.SGD(self.parameters(), momentum=0.9)
         elif self.optimizer_name == "adam":
-            return torch.optim.Adam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+            return torch.optim.Adam(self.parameters())
         elif self.optimizer_name == "adamax":
-            return torch.optim.Adamax(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+            return torch.optim.Adamax(self.parameters())
         elif self.optimizer_name == "nadam":
-            return torch.optim.NAdam(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+            return torch.optim.NAdam(self.parameters())
         elif self.optimizer_name == "adagrad":
-            return torch.optim.Adagrad(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+            return torch.optim.Adagrad(self.parameters())
         elif self.optimizer_name == "adadelta":
-            return torch.optim.Adadelta(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+            return torch.optim.Adadelta(self.parameters())
         elif self.optimizer_name == "adabound":
-            return t_optim.AdaBound(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+            return t_optim.AdaBound(self.parameters())
         elif self.optimizer_name == "rmsprop":
-            return torch.optim.RMSprop(self.parameters(), lr=self.learning_rate, **self.optimizer_params)
+            return torch.optim.RMSprop(self.parameters())
         else:
             raise ValueError(f"Unsupported optimizer: {self.optimizer_name}")
         
@@ -389,48 +342,48 @@ class T5TranslationDataModule(pl.LightningDataModule):
 
 def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", **optimizer_params):
     ic.disable()
-    print(f"Training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}, and learning rate {learning_rate}")
+    print(f"Training with seed {seed}, optimizer {optimizer_name}, batch size {batch_size}")
     print(f"Training mode: {training_mode}")
 
     # Optimizer-specific hyperparameter filtering
-    optimizer_name_lower = optimizer_name.lower()
-    filtered_params = {}
+    # optimizer_name_lower = optimizer_name.lower()
+    # filtered_params = {}
 
-    if optimizer_name_lower in ['adam', 'adamw', 'adamax', 'nadam']:
-        # Common parameters for Adam-like optimizers
-        if "betas" in optimizer_params:
-            filtered_params["betas"] = optimizer_params["betas"]
-        if "eps" in optimizer_params:
-            filtered_params["eps"] = optimizer_params["eps"]
-    if optimizer_name_lower in ['sgd', 'sgdm']:
-        # Parameters specific to SGD and SGDM
-        if "momentum" in optimizer_params:
-            filtered_params["momentum"] = optimizer_params["momentum"]
-    if optimizer_name_lower == 'rmsprop':
-        # Parameters specific to RMSprop
-        if "alpha" in optimizer_params:
-            filtered_params["alpha"] = optimizer_params["alpha"]
-        if "momentum" in optimizer_params:
-            filtered_params["momentum"] = optimizer_params["momentum"]
-    if optimizer_name_lower == 'nadam':
-        # NAdam-specific parameter
-        if "momentum_decay" in optimizer_params:
-            filtered_params["momentum_decay"] = optimizer_params["momentum_decay"]
+    # if optimizer_name_lower in ['adam', 'adamw', 'adamax', 'nadam']:
+    #     # Common parameters for Adam-like optimizers
+    #     if "betas" in optimizer_params:
+    #         filtered_params["betas"] = optimizer_params["betas"]
+    #     if "eps" in optimizer_params:
+    #         filtered_params["eps"] = optimizer_params["eps"]
+    # if optimizer_name_lower in ['sgd', 'sgdm']:
+    #     # Parameters specific to SGD and SGDM
+    #     if "momentum" in optimizer_params:
+    #         filtered_params["momentum"] = optimizer_params["momentum"]
+    # if optimizer_name_lower == 'rmsprop':
+    #     # Parameters specific to RMSprop
+    #     if "alpha" in optimizer_params:
+    #         filtered_params["alpha"] = optimizer_params["alpha"]
+    #     if "momentum" in optimizer_params:
+    #         filtered_params["momentum"] = optimizer_params["momentum"]
+    # if optimizer_name_lower == 'nadam':
+    #     # NAdam-specific parameter
+    #     if "momentum_decay" in optimizer_params:
+    #         filtered_params["momentum_decay"] = optimizer_params["momentum_decay"]
 
     # # Add weight_decay if provided (common to all optimizers)
     # if "weight_decay" in optimizer_params:
     #     filtered_params["weight_decay"] = optimizer_params["weight_decay"]
 
     # Log filtered parameters
-    for key, value in filtered_params.items():
-        print(f"Using hyperparameter: {key} = {value}")
+    # for key, value in filtered_params.items():
+    #     print(f"Using hyperparameter: {key} = {value}")
 
     pl.seed_everything(seed)
     model = T5TranslationModule(
         model_name=model_name,
-        learning_rate=learning_rate,
+        # learning_rate=learning_rate,
         optimizer_name=optimizer_name,
-        **optimizer_params
+        # **optimizer_params
     )
 
     data_module = T5TranslationDataModule(
@@ -447,9 +400,9 @@ def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", 
     # Initialize WandbLogger
     wandb.finish()  # In case the last run crashed, this will close the previous run
     wandb_logger = WandbLogger(project="t5_translation_project",
-                               name=f"{model_name}_{optimizer_name}_seed_{seed}")
+                               name=f"{model_name}_{optimizer_name}_seed_{seed}_defaults")
 
-    checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed}", 
+    checkpoint_callback = ModelCheckpoint(dirpath= f"checkpoints/{model_name}_{optimizer_name}_seed_{seed}_defaults", 
                                           monitor="val_loss", 
                                           mode="min",
                                           save_last=True)
@@ -466,7 +419,7 @@ def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", 
         enable_checkpointing=True
     )
 
-    hyperparameters = dict(learning_rate=learning_rate, 
+    hyperparameters = dict(# learning_rate=learning_rate, 
                            optimizer_name=optimizer_name, 
                            seed_num=seed, 
                            dataset_name=dataset_name, 
@@ -477,8 +430,9 @@ def main(seed, optimizer_name, batch_size, learning_rate, training_mode="None", 
                            val_range=val_range, 
                            test_range=test_range,
                            bert_score_model_used=bert_score_model_to_use,
-                           training_mode=training_mode,
-                           **optimizer_params)
+                           training_mode=training_mode)
+    
+                        #    **optimizer_params)
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, datamodule=data_module)
 
@@ -491,24 +445,24 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, required=True, help="Seed number for reproducibility")
     parser.add_argument("--optim", type=str, required=True, help="Optimizer to use for training")
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
-    parser.add_argument("--learning_rate", type=float, required=True, help="Learning rate for training")
+    # parser.add_argument("--learning_rate", type=float, required=True, help="Learning rate for training")
     parser.add_argument("--training_mode", type=str, default="None", help="Training mode")
     
     # Add arguments for all possible optimizer parameters
-    parser.add_argument("--betas", nargs=2, type=float, help="Beta parameters for Adam-like optimizers")
-    parser.add_argument("--eps", type=float, help="Epsilon parameter for optimizers")
-    parser.add_argument("--momentum", type=float, help="Momentum parameter for SGD")
-    parser.add_argument("--alpha", type=float, help="Alpha parameter for RMSprop")
-    # parser.add_argument("--weight_decay", type=float, help="Weight decay parameter")
-    parser.add_argument("--momentum_decay", type=float, help="Momentum decay for NAdam")
+    # parser.add_argument("--betas", nargs=2, type=float, help="Beta parameters for Adam-like optimizers")
+    # parser.add_argument("--eps", type=float, help="Epsilon parameter for optimizers")
+    # parser.add_argument("--momentum", type=float, help="Momentum parameter for SGD")
+    # parser.add_argument("--alpha", type=float, help="Alpha parameter for RMSprop")
+    # # parser.add_argument("--weight_decay", type=float, help="Weight decay parameter")
+    # parser.add_argument("--momentum_decay", type=float, help="Momentum decay for NAdam")
     
     args = parser.parse_args()
     
     # Convert args to dictionary and remove None values
-    optimizer_params = {k: v for k, v in vars(args).items() if k not in ["seed", "optim", "batch_size", "learning_rate", "training_mode"] and v is not None}
+    # optimizer_params = {k: v for k, v in vars(args).items() if k not in ["seed", "optim", "batch_size", "learning_rate", "training_mode"] and v is not None}
     
     # Convert betas tuple to list if it exists
-    if "betas" in optimizer_params:
-        optimizer_params["betas"] = tuple(optimizer_params["betas"])
+    # if "betas" in optimizer_params:
+        # optimizer_params["betas"] = tuple(optimizer_params["betas"])
     
-    main(args.seed, args.optim, args.batch_size, args.learning_rate, args.training_mode, **optimizer_params)
+    main(args.seed, args.optim, args.batch_size, args.training_mode)

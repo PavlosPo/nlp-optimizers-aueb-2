@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
 from torchmetrics.text import BLEUScore
-from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, T5Tokenizer
 from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
 import argparse
@@ -25,17 +25,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = 'false'  # This is required in order not 
 wandb.require("core")   # This is required for W&B to work in future versions.
 
 # Ask the user to choose between small, base and large model
-model_names = {
-    "1": "google-t5/t5-small",
-    "2": "google-t5/t5-base",
-    "3": "google-t5/t5-large"
-}
-max_length = {
-    "1": 512,
-    "2": 768,
-    "3": 1024
-}
-model_name = "google-t5/t5-small"
+model_name = "google/t5-v1_1-small"
 bert_score_model_to_use = "microsoft/deberta-large-mnli"
 max_length = 512
 dataset_name = "IWSLT/iwslt2017"
@@ -50,7 +40,7 @@ class T5TranslationModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).train()
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
         self.learning_rate = learning_rate
         self.optimizer_name = optimizer_name
         self.optimizer_params = optimizer_params
