@@ -1,0 +1,12 @@
+Seed: 1
+Model: google/t5-v1_1-small
+Dataset: IWSLT/iwslt2017
+Optimizer: sgdm
+Training range: 10000
+Test range: 1000
+Validation range: 1000
+Best Validation Loss: 0.4879145920276642
+Best Hyperparameters:
+learning_rate: 0.0009907625571287007
+Search Spaces:
+ learning_rate: (1e-07, 0.001)
