@@ -11,7 +11,6 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.bert import BERTScore
-from torchmetrics.text import BLEUScore
 from transformers import DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, T5Tokenizer
 from datasets import load_dataset, concatenate_datasets
 from torchmetrics import MeanMetric
@@ -215,12 +214,7 @@ class T5TranslationModule(pl.LightningModule):
         result_brt = self.bert_score(preds=decoded_preds, target=decoded_labels)
         result_brt_average_values = {key: torch.tensor(tensors.mean().item()) for key, tensors in result_brt.items()}
         
-        # Calculate BLEU score - need to tokenize the text for BLEU
-        tokenized_preds = [pred.split() for pred in decoded_preds]
-        tokenized_labels = [[label.split()] for label in decoded_labels]  # BLEU expects a list of list of references
-        bleu_score = self.bleu_score(tokenized_preds, tokenized_labels)
-        
-        results = {**result_rouge, **result_brt_average_values, 'bleu_score': bleu_score}
+        results = {**result_rouge, **result_brt_average_values}
         return results
 
     def _get_optimizer(self):
