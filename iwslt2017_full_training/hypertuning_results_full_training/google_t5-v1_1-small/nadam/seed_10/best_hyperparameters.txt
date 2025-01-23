@@ -1,0 +1,20 @@
+Seed: 10
+Model: google/t5-v1_1-small
+Dataset: IWSLT/iwslt2017
+Optimizer: nadam
+Training range: 10000
+Test range: 1000
+Validation range: 1000
+Best Validation Loss: 0.17081303894519806
+Best Hyperparameters:
+learning_rate: 0.0009521182666694027
+nadam_beta1: 0.8719747151779275
+nadam_beta2: 0.9071314359548878
+nadam_epsilon: 9.580848651926517e-08
+momentum_decay: 0.004625313138055793
+Search Spaces:
+  learning_rate: (1e-07, 0.001)
+  beta1: (0.8, 0.95)
+  beta2: (0.9, 0.99999)
+  eps: (1e-09, 1e-07)
+  momentum: (0.0001, 0.01)
