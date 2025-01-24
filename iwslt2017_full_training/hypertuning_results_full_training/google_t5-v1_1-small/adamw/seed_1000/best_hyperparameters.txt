@@ -1,17 +1,18 @@
-Seed: 100
+Seed: 1000
 Model: google/t5-v1_1-small
 Dataset: IWSLT/iwslt2017
-Optimizer: sgdm
+Optimizer: adamw
 Training range: 10000
 Test range: 1000
 Validation range: 1000
-Best Validation Loss: 0.4941059350967407
+Best Validation Loss: 0.17170560359954834
 Best Hyperparameters:
-learning_rate: 0.0009947366733777932
-momentum: 0.7799933707071863
+learning_rate: 0.0009412533154448291
+adamw_beta1: 0.9165330445152328
+adamw_beta2: 0.9014907435658979
+adamw_epsilon: 2.6848981629774474e-08
 Search Spaces:
   learning_rate: (1e-07, 0.001)
   beta1: (0.8, 0.95)
   beta2: (0.9, 0.99999)
   eps: (1e-09, 1e-07)
-  momentum: (0.7, 0.99999)
