@@ -2,7 +2,7 @@ import os
 import pandas as pd
 
 # Directory containing CSV files
-folder_of_model = "t5-small" # "t5_v1_1-small" or "t5-small"
+folder_of_model = "t5_v1_1-small" # "t5_v1_1-small" or "t5-small"
 csv_dir = folder_of_model + "/tests"
 output_file = folder_of_model + "/summary_table_tests.csv"
 

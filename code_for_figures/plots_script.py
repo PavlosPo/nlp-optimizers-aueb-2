@@ -84,7 +84,7 @@ def plot_csv(file_path, output_path, optimizers, styles):
         dataset_name, data_type, metric, mode = parts[:4]
 
     # Prepare plot labels
-    y_axis_label = metric.capitalize().replace("f1", "F1 Score").replace("loss", "Loss")
+    y_axis_label = metric.capitalize().replace("F1", "F1 Score").replace("loss", "Loss").replace("Rouge2_fmeasure", "ROUGE-2").replace("Rouge1_fmeasure", "ROUGE-1")
     
     # Sample data
     sampled_data = sample_data(data, data_type)
@@ -97,6 +97,14 @@ def plot_csv(file_path, output_path, optimizers, styles):
     plt.rcParams['axes.spines.right'] = False
     plt.rcParams['axes.spines.top'] = False
     plt.rcParams['axes.spines.bottom'] = False
+
+    optimizer_label_mapping = {
+        "adamw": "AdamW",
+        "nadam": "NAdam",
+        "adam": "Adam",
+        "sgdm": "SGDM",
+        "sgd": "SGD",
+    }
     
     # Initialize y-values for percentile calculation
     all_y_values = []
@@ -120,7 +128,7 @@ def plot_csv(file_path, output_path, optimizers, styles):
             sampled_data["Step"],
             mean_values,
             # yerr=std_dev,
-            label=optimizer.upper(),
+            label=optimizer_label_mapping[optimizer.lower()],
             color=styles[optimizer]["color"],
             linestyle=styles[optimizer]["linestyle"],
             marker=styles[optimizer]["marker"],
@@ -138,12 +146,14 @@ def plot_csv(file_path, output_path, optimizers, styles):
         if dataset_name == "flores":
             plt.ylim(0, 20)
             
-    plt.yticks(fontsize=24)  # Set quartile values as y-axis ticks
-    plt.xticks(fontsize=24)    
+    plt.yticks(fontsize=12)  # Set quartile values as y-axis ticks
+    plt.xticks(fontsize=12)    
+    plt.legend(fontsize=12, loc='best')  # Ensure legend is included
     plt.tight_layout()
     # Save plot
     output_file = os.path.join(output_path, filename.replace(".csv", ".pdf"))
-    plt.savefig(output_file, dpi=300, format='pdf')
+    # plt.savefig(output_file, dpi=300, format='pdf')
+    plt.savefig(output_file, dpi=300, format='pdf', bbox_inches='tight')  # Ensure the legend is saved
     print(f"Plot saved as: {output_file}")
     plt.close()
 
